@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="description"
+      content="A procedural neural-network scene that visualizes platform signals moving toward a central brain."
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>Neural Network Hero</title>
+  </head>
+  <body>
+    <main id="app">
+      <canvas
+        id="scene-canvas"
+        role="img"
+        aria-label="Interactive neural network scene initializing"
+      ></canvas>
+      <section id="renderer-fallback" hidden aria-live="polite" aria-labelledby="fallback-title">
+        <div class="fallback__grid" aria-hidden="true"></div>
+        <div class="fallback__content">
+          <p class="fallback__eyebrow">Neural network</p>
+          <h1 id="fallback-title">Interactive scene unavailable</h1>
+          <p>
+            Your browser could not start the graphics renderer. The final experience remains a
+            dark neural-network visualization with inbound platform signals.
+          </p>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
