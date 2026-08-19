@@ -105,7 +105,9 @@ body {
   z-index: 2;
   top: max(1rem, env(safe-area-inset-top));
   right: max(1rem, env(safe-area-inset-right));
-  width: min(18rem, calc(100vw - 2rem));
+  width: min(19rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
   padding: 0.9rem;
   border: 1px solid rgba(142, 233, 255, 0.21);
   border-radius: 0.75rem;
@@ -115,9 +117,9 @@ body {
 }
 
 .debug-panel__header {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: baseline;
-  justify-content: space-between;
   gap: 0.75rem;
   margin-bottom: 0.8rem;
 }
@@ -127,12 +129,36 @@ body {
 }
 
 .debug-panel__header span {
+  text-align: right;
   color: rgba(237, 246, 255, 0.54);
   font-size: 0.68rem;
 }
 
+.debug-panel__header [data-debug-collapse] {
+  display: grid;
+  width: 1.5rem;
+  min-height: 1.5rem;
+  padding: 0;
+  place-items: center;
+  border-radius: 50%;
+  line-height: 1;
+}
+
+.debug-panel.is-collapsed {
+  width: min(19rem, calc(100vw - 2rem));
+}
+
+.debug-panel.is-collapsed > :not(.debug-panel__header) {
+  display: none;
+}
+
+.debug-panel.is-collapsed .debug-panel__header {
+  margin-bottom: 0;
+}
+
 .debug-panel > label,
-.debug-panel__reserved label {
+.debug-panel__reserved label,
+.debug-panel__scaffold label {
   display: grid;
   gap: 0.35rem;
   margin-top: 0.65rem;
@@ -204,6 +230,89 @@ body {
   line-height: 1.45;
 }
 
+.debug-panel__scaffold {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+  margin: 0.8rem 0 0;
+  padding: 0.65rem;
+  border: 1px solid rgba(142, 233, 255, 0.16);
+  border-radius: 0.45rem;
+}
+
+.debug-panel__scaffold legend,
+.debug-panel__reserved legend {
+  padding: 0 0.25rem;
+  color: rgba(237, 246, 255, 0.48);
+  font-size: 0.62rem;
+}
+
+.debug-panel__scaffold label {
+  display: flex;
+  align-items: center;
+  gap: 0.28rem;
+  margin: 0;
+  color: rgba(237, 246, 255, 0.66);
+  font-size: 0.62rem;
+}
+
+.debug-panel__legend {
+  display: grid;
+  gap: 0.26rem;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.debug-panel__legend li {
+  display: grid;
+  grid-template-columns: 0.65rem 1fr auto;
+  align-items: center;
+  gap: 0.42rem;
+  color: rgba(237, 246, 255, 0.72);
+  font-size: 0.66rem;
+}
+
+.debug-panel__legend i {
+  width: 0.48rem;
+  height: 0.48rem;
+  border-radius: 50%;
+  background: var(--marker-color);
+  box-shadow: 0 0 0.65rem var(--marker-color);
+}
+
+.debug-panel__legend small {
+  color: rgba(237, 246, 255, 0.38);
+  font-size: 0.58rem;
+}
+
+.debug-safe-frame {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  width: var(--safe-frame-width);
+  height: var(--safe-frame-height);
+  border: 1px dashed rgba(142, 233, 255, 0.58);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.debug-safe-frame::after {
+  position: absolute;
+  top: 0.4rem;
+  left: 0.5rem;
+  color: rgba(142, 233, 255, 0.72);
+  font: 600 0.58rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  content: '78% safe frame';
+}
+
+.debug-safe-frame[hidden] {
+  display: none;
+}
+
 .debug-panel__reserved {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -212,12 +321,6 @@ body {
   padding: 0.65rem;
   border: 1px dashed rgba(142, 233, 255, 0.16);
   border-radius: 0.45rem;
-}
-
-.debug-panel__reserved legend {
-  padding: 0 0.25rem;
-  color: rgba(237, 246, 255, 0.4);
-  font-size: 0.62rem;
 }
 
 .debug-panel__reserved label {
@@ -233,6 +336,10 @@ body {
   .debug-panel {
     top: max(0.75rem, env(safe-area-inset-top));
     right: max(0.75rem, env(safe-area-inset-right));
+    width: min(17rem, calc(100vw - 1.5rem));
+  }
+
+  .debug-panel.is-collapsed {
     width: min(17rem, calc(100vw - 1.5rem));
   }
 }

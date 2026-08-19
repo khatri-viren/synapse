@@ -7,7 +7,14 @@ import type {
   QualityTier,
   RendererPreference,
   RuntimeDiagnostics,
+  SceneDebugSnapshot,
 } from './scene/types';
+
+declare global {
+  interface Window {
+    __NEURAL_DEBUG__?: () => SceneDebugSnapshot;
+  }
+}
 
 type LaunchOptions = {
   debugEnabled: boolean;
@@ -65,7 +72,7 @@ const canvas = document.querySelector<HTMLCanvasElement>('#scene-canvas');
 const fallback = document.querySelector<HTMLElement>('#renderer-fallback');
 
 if (app === null || canvas === null || fallback === null) {
-  throw new Error('Phase 0 application shell could not be initialized.');
+  throw new Error('Neural composition application shell could not be initialized.');
 }
 
 const launch = readLaunchOptions();
@@ -107,8 +114,12 @@ if (launch.debugEnabled) {
       onIntroPhase: (phase) => controller.setIntroPhase(phase),
       onReplay: () => controller.replayIntro(),
       onPausedChange: (paused) => controller.setPaused(paused),
+      onBrainProxyVisibility: (visible) => controller.setBrainProxyVisible(visible),
+      onBadgeMarkersVisibility: (visible) => controller.setBadgeMarkersVisible(visible),
     },
   });
+
+  window.__NEURAL_DEBUG__ = () => controller.getDebugSnapshot();
 
   if (latestDiagnostics !== null) {
     debugPanel.update(latestDiagnostics);
@@ -118,6 +129,7 @@ if (launch.debugEnabled) {
 void controller.start();
 
 const dispose = (): void => {
+  delete window.__NEURAL_DEBUG__;
   controller.dispose();
   debugPanel?.dispose();
 };

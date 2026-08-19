@@ -31,7 +31,48 @@ export interface RuntimeDiagnostics {
   isPaused: boolean;
   isDocumentHidden: boolean;
   frameP95Ms: number | null;
+  compositionLayout: 'wide' | 'compact';
+  cameraPosition: { x: number; y: number; z: number };
+  pointerStrength: number;
   message: string;
+}
+
+export interface SceneDebugSnapshot {
+  groups: string[];
+  compositionLayout: 'wide' | 'compact';
+  visibility: {
+    brainProxy: boolean;
+    badgeMarkers: boolean;
+  };
+  safeFrame: { x: number; y: number };
+  camera: {
+    position: { x: number; y: number; z: number };
+    target: { x: number; y: number; z: number };
+    aspect: number;
+    fov: number;
+    near: number;
+    far: number;
+  };
+  pointer: {
+    ndc: { x: number; y: number };
+    strength: number;
+    enabled: boolean;
+  };
+  supportFit: {
+    allInFront: boolean;
+    insideSafeFrame: boolean;
+    insideViewport: boolean;
+    maxAbsX: number;
+    maxAbsY: number;
+  };
+  markers: Array<{
+    id: LogoId;
+    direction: 'inbound';
+    depthRole: 'front' | 'behind';
+    world: { x: number; y: number; z: number };
+    ndc: { x: number; y: number; z: number };
+    insideViewport: boolean;
+  }>;
 }
 
 export const RESERVED_DEBUG_FEATURES = [

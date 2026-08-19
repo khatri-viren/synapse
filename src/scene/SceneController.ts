@@ -7,7 +7,9 @@ import {
   WebGPURenderer,
 } from 'three/webgpu';
 
-import { DiagnosticRig } from './DiagnosticRig';
+import { CameraRig } from './CameraRig';
+import { CompositionScaffold } from './CompositionScaffold';
+import { BADGE_MARKER_SPECS, COMPOSITION_SAFE_FRAME } from './compositionSpec';
 import type {
   IntroPhase,
   QualityTier,
@@ -15,13 +17,13 @@ import type {
   RendererPreference,
   RuntimeDiagnostics,
   RuntimePhase,
+  SceneDebugSnapshot,
   SceneState,
 } from './types';
 
 const CANVAS_BACKGROUND = new Color('#05060c');
 const FRAME_SAMPLE_CAPACITY = 180;
 const DIAGNOSTIC_INTERVAL_MS = 250;
-const DIAGNOSTIC_HALF_EXTENT = 1.9;
 const CAMERA_VERTICAL_FOV_DEGREES = 42;
 
 const INTRO_TIMELINE: ReadonlyArray<{ until: number; phase: IntroPhase }> = [
@@ -79,8 +81,10 @@ export class SceneController {
   private readonly onDiagnostics?: (diagnostics: RuntimeDiagnostics) => void;
   private readonly scene = new Scene();
   private readonly camera = new PerspectiveCamera(CAMERA_VERTICAL_FOV_DEGREES, 1, 0.1, 100);
-  private readonly diagnosticRig = new DiagnosticRig();
+  private readonly cameraRig = new CameraRig(this.camera);
+  private readonly composition = new CompositionScaffold();
   private readonly reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  private readonly finePointerQuery = window.matchMedia('(pointer: fine)');
   private readonly frameSamples: number[] = [];
 
   private renderer: WebGPURenderer | null = null;
@@ -108,14 +112,16 @@ export class SceneController {
       pointerStrength: 0,
     };
 
-    this.camera.position.set(0, 0, 4);
-    this.camera.lookAt(0, 0, 0);
     this.scene.background = CANVAS_BACKGROUND;
-    this.scene.add(this.diagnosticRig.root);
+    this.scene.add(this.composition.root);
 
     window.addEventListener('resize', this.handleResize, { passive: true });
+    window.addEventListener('blur', this.handlePointerExit);
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
     this.reducedMotionQuery.addEventListener('change', this.handleReducedMotionChange);
+    this.finePointerQuery.addEventListener('change', this.handleFinePointerChange);
+    this.canvas.addEventListener('pointermove', this.handlePointerMove, { passive: true });
+    this.canvas.addEventListener('pointerleave', this.handlePointerExit);
   }
 
   async start(): Promise<void> {
@@ -160,8 +166,8 @@ export class SceneController {
       this.runtimePhase = 'ready';
       this.runtimeMessage =
         this.backend === 'webgpu'
-          ? 'WebGPU backend initialized.'
-          : 'WebGL2 backend initialized through WebGPURenderer.';
+          ? 'WebGPU backend initialized. Phase 1 composition scaffold ready.'
+          : 'WebGL2 backend initialized through WebGPURenderer. Phase 1 composition scaffold ready.';
       this.started = true;
       this.renderOnce();
       await this.syncAnimationLoop();
@@ -177,6 +183,9 @@ export class SceneController {
     }
 
     this.state.quality = quality;
+    if (quality !== 'desktop') {
+      this.clearPointerIntent();
+    }
     this.applySize();
     this.renderOnce();
     void this.syncAnimationLoop();
@@ -213,6 +222,63 @@ export class SceneController {
     this.publishDiagnostics(true);
   }
 
+  setBrainProxyVisible(visible: boolean): void {
+    this.composition.setBrainProxyVisible(visible);
+    this.renderOnce();
+  }
+
+  setBadgeMarkersVisible(visible: boolean): void {
+    this.composition.setBadgeMarkersVisible(visible);
+    this.renderOnce();
+  }
+
+  getDebugSnapshot(): SceneDebugSnapshot {
+    this.camera.updateMatrixWorld(true);
+    const cameraSnapshot = this.cameraRig.getSnapshot();
+
+    return {
+      groups: this.composition.getOwnedGroupNames(),
+      compositionLayout: this.composition.getLayout(),
+      visibility: this.composition.getVisibility(),
+      safeFrame: { ...COMPOSITION_SAFE_FRAME },
+      camera: {
+        position: {
+          x: cameraSnapshot.position.x,
+          y: cameraSnapshot.position.y,
+          z: cameraSnapshot.position.z,
+        },
+        target: {
+          x: cameraSnapshot.target.x,
+          y: cameraSnapshot.target.y,
+          z: cameraSnapshot.target.z,
+        },
+        aspect: this.camera.aspect,
+        fov: this.camera.fov,
+        near: this.camera.near,
+        far: this.camera.far,
+      },
+      pointer: {
+        ndc: { ...this.state.pointerNdc },
+        strength: this.state.pointerStrength,
+        enabled: this.isPointerParallaxEnabled(),
+      },
+      supportFit: this.cameraRig.validateSupportFit(),
+      markers: BADGE_MARKER_SPECS.map((spec) => {
+        const world = this.composition.getMarkerWorldPosition(spec.id);
+        const ndc = world.clone().project(this.camera);
+
+        return {
+          id: spec.id,
+          direction: spec.direction,
+          depthRole: spec.depthRole,
+          world: { x: world.x, y: world.y, z: world.z },
+          ndc: { x: ndc.x, y: ndc.y, z: ndc.z },
+          insideViewport: Math.abs(ndc.x) <= 1 && Math.abs(ndc.y) <= 1 && ndc.z >= -1 && ndc.z <= 1,
+        };
+      }),
+    };
+  }
+
   dispose(): void {
     if (this.disposed) {
       return;
@@ -221,8 +287,12 @@ export class SceneController {
     this.disposed = true;
     this.runtimePhase = 'disposed';
     window.removeEventListener('resize', this.handleResize);
+    window.removeEventListener('blur', this.handlePointerExit);
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     this.reducedMotionQuery.removeEventListener('change', this.handleReducedMotionChange);
+    this.finePointerQuery.removeEventListener('change', this.handleFinePointerChange);
+    this.canvas.removeEventListener('pointermove', this.handlePointerMove);
+    this.canvas.removeEventListener('pointerleave', this.handlePointerExit);
 
     if (this.renderer !== null && this.started) {
       void this.renderer.setAnimationLoop(null);
@@ -233,13 +303,41 @@ export class SceneController {
       this.renderer = null;
     }
 
-    this.diagnosticRig.dispose();
+    this.composition.dispose();
     this.publishDiagnostics(true);
   }
 
   private readonly handleResize = (): void => {
+    this.clearPointerIntent();
     this.applySize();
     this.renderOnce();
+  };
+
+  private readonly handlePointerMove = (event: PointerEvent): void => {
+    if (!this.isPointerParallaxEnabled() || event.pointerType !== 'mouse') {
+      this.clearPointerIntent();
+      return;
+    }
+
+    const bounds = this.canvas.getBoundingClientRect();
+
+    if (bounds.width <= 0 || bounds.height <= 0) {
+      return;
+    }
+
+    this.state.pointerNdc.x = Math.min(
+      Math.max(((event.clientX - bounds.left) / bounds.width) * 2 - 1, -1),
+      1,
+    );
+    this.state.pointerNdc.y = Math.min(
+      Math.max(-(((event.clientY - bounds.top) / bounds.height) * 2 - 1), -1),
+      1,
+    );
+    this.state.pointerStrength = 1;
+  };
+
+  private readonly handlePointerExit = (): void => {
+    this.clearPointerIntent();
   };
 
   private readonly handleVisibilityChange = (): void => {
@@ -258,7 +356,14 @@ export class SceneController {
       return;
     }
 
+    this.clearPointerIntent();
     this.setQualityTier(this.reducedMotionQuery.matches ? 'reduced-motion' : this.startingQuality);
+  };
+
+  private readonly handleFinePointerChange = (): void => {
+    if (!this.finePointerQuery.matches) {
+      this.clearPointerIntent();
+    }
   };
 
   private readonly renderFrame = (timestamp: number): void => {
@@ -278,7 +383,7 @@ export class SceneController {
       }
     }
 
-    this.renderCurrentState();
+    this.renderCurrentState(deltaMs / 1_000);
     this.publishDiagnostics(false, timestamp);
   };
 
@@ -314,14 +419,23 @@ export class SceneController {
 
     this.renderer.setPixelRatio(pixelRatio);
     this.renderer.setSize(safeWidth, safeHeight, false);
-    this.camera.aspect = safeWidth / safeHeight;
-    const halfFovRadians = (CAMERA_VERTICAL_FOV_DEGREES * Math.PI) / 360;
-    const tanHalfFov = Math.tan(halfFovRadians);
-    const distanceForHeight = DIAGNOSTIC_HALF_EXTENT / tanHalfFov;
-    const distanceForWidth = DIAGNOSTIC_HALF_EXTENT / (tanHalfFov * this.camera.aspect);
-    this.camera.position.z = Math.max(4, distanceForHeight, distanceForWidth);
-    this.camera.lookAt(0, 0, 0);
-    this.camera.updateProjectionMatrix();
+    const layout = safeWidth <= 767 || safeWidth / safeHeight < 0.85 ? 'compact' : 'wide';
+    this.composition.setLayout(layout);
+    this.cameraRig.fit(safeWidth, safeHeight, this.composition.getSupportPoints());
+  }
+
+  private isPointerParallaxEnabled(): boolean {
+    return (
+      this.state.quality === 'desktop' &&
+      this.finePointerQuery.matches &&
+      !this.reducedMotionQuery.matches
+    );
+  }
+
+  private clearPointerIntent(): void {
+    this.state.pointerNdc.x = 0;
+    this.state.pointerNdc.y = 0;
+    this.state.pointerStrength = 0;
   }
 
   private async hasViableGraphicsBackend(): Promise<boolean> {
@@ -354,18 +468,19 @@ export class SceneController {
       return;
     }
 
-    this.renderCurrentState();
+    this.renderCurrentState(0);
   }
 
-  private renderCurrentState(): void {
+  private renderCurrentState(deltaSeconds: number): void {
     if (this.renderer === null) {
       return;
     }
 
-    this.diagnosticRig.update(
-      this.state.elapsedSeconds,
-      this.state.introPhase,
-      this.shouldAnimate(),
+    this.cameraRig.update(
+      deltaSeconds,
+      this.state.pointerNdc,
+      this.state.pointerStrength,
+      this.isPointerParallaxEnabled(),
     );
     this.renderer.render(this.scene, this.camera);
   }
@@ -393,6 +508,7 @@ export class SceneController {
     }
 
     this.lastDiagnosticsTimestamp = timestamp;
+    const cameraSnapshot = this.cameraRig.getSnapshot();
     this.onDiagnostics?.({
       backend: this.backend,
       rendererPreference: this.rendererPreference,
@@ -402,6 +518,13 @@ export class SceneController {
       isPaused: this.manuallyPaused,
       isDocumentHidden: document.hidden,
       frameP95Ms: percentile95(this.frameSamples),
+      compositionLayout: this.composition.getLayout(),
+      cameraPosition: {
+        x: cameraSnapshot.position.x,
+        y: cameraSnapshot.position.y,
+        z: cameraSnapshot.position.z,
+      },
+      pointerStrength: this.state.pointerStrength,
       message: this.runtimeMessage,
     });
   }
