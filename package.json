@@ -7,6 +7,7 @@
     "dev": "vite",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && vite build",
+    "optimize:brain": "node scripts/optimize-brain.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -14,6 +15,8 @@
   },
   "devDependencies": {
     "@types/three": "^0.185.4",
+    "meshoptimizer": "~1.1.1",
+    "simple-icons": "16.28.0",
     "typescript": "^7.0.2",
     "vite": "^8.2.1"
   }

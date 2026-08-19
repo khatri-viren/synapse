@@ -2,6 +2,7 @@ import './styles.css';
 
 import { DebugPanel } from './debug/DebugPanel';
 import { SceneController } from './scene/SceneController';
+import type { CompositionLayout } from './scene/compositionSpec';
 import type {
   QualityOverride,
   QualityTier,
@@ -20,6 +21,7 @@ type LaunchOptions = {
   debugEnabled: boolean;
   rendererPreference: RendererPreference;
   qualityOverride: QualityOverride;
+  layoutOverride: CompositionLayout | null;
 };
 
 function readLaunchOptions(): LaunchOptions {
@@ -27,14 +29,17 @@ function readLaunchOptions(): LaunchOptions {
   const debugEnabled = query.get('debug') === '1';
   const renderer = query.get('renderer');
   const quality = query.get('quality');
+  const layout = query.get('layout');
 
   return {
     debugEnabled,
-    rendererPreference: debugEnabled && renderer === 'webgl' ? 'webgl' : 'auto',
+    rendererPreference:
+      debugEnabled && (renderer === 'webgl' || renderer === 'fallback') ? renderer : 'auto',
     qualityOverride:
       debugEnabled && (quality === 'desktop' || quality === 'mobile' || quality === 'reduced-motion')
         ? quality
         : 'auto',
+    layoutOverride: debugEnabled && (layout === 'wide' || layout === 'compact') ? layout : null,
   };
 }
 
@@ -101,6 +106,7 @@ const controller = new SceneController({
   canvas,
   rendererPreference: launch.rendererPreference,
   initialQuality: resolveInitialQuality(launch.qualityOverride),
+  layoutOverride: launch.layoutOverride,
   onDiagnostics: updateRuntimePresentation,
 });
 
@@ -114,8 +120,17 @@ if (launch.debugEnabled) {
       onIntroPhase: (phase) => controller.setIntroPhase(phase),
       onReplay: () => controller.replayIntro(),
       onPausedChange: (paused) => controller.setPaused(paused),
-      onBrainProxyVisibility: (visible) => controller.setBrainProxyVisible(visible),
-      onBadgeMarkersVisibility: (visible) => controller.setBadgeMarkersVisible(visible),
+      onBrainFillVisibility: (visible) => controller.setBrainFillVisible(visible),
+      onPrimaryWiresVisibility: (visible) => controller.setPrimaryWiresVisible(visible),
+      onGhostWiresVisibility: (visible) => controller.setGhostWiresVisible(visible),
+      onBrainAnchorsVisibility: (visible) => controller.setBrainAnchorsVisible(visible),
+      onWireEnergyNodesVisibility: (visible) => controller.setWireEnergyNodesVisible(visible),
+      onBadgeActorsVisibility: (visible) => controller.setBadgeActorsVisible(visible),
+      onBadgeSocketsVisibility: (visible) => controller.setBadgeSocketsVisible(visible),
+      onBadgeOrbitGuidesVisibility: (visible) => controller.setBadgeOrbitGuidesVisible(visible),
+      onConnectionsVisibility: (visible) => controller.setConnectionsVisible(visible),
+      onPacketsVisibility: (visible) => controller.setPacketsVisible(visible),
+      onBloomVisibility: (visible) => controller.setBloomEnabled(visible),
     },
   });
 

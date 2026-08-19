@@ -1,0 +1,240 @@
+import {
+  AdditiveBlending,
+  Box3,
+  LineBasicNodeMaterial,
+  MeshStandardNodeMaterial,
+  Vector3,
+} from 'three/webgpu';
+import {
+  abs,
+  attribute,
+  clamp,
+  color,
+  distance,
+  float,
+  fract,
+  min,
+  mix,
+  positionWorld,
+  sin,
+  smoothstep,
+  uniform,
+} from 'three/tsl';
+
+import type { IntroPhase, QualityTier, SceneDebugSnapshot } from '../scene/types';
+import { CHOREOGRAPHY_TIMELINE } from '../scene/ChoreographyTimeline';
+
+export const WIRE_PHASE_ATTRIBUTE = 'wireEnergyPhase';
+export const WIRE_SELECTION_ATTRIBUTE = 'wireEnergySelection';
+export const WIRE_COORDINATE_ATTRIBUTE = 'wireEnergyCoordinate';
+
+const FILL_LAG_WORLD_UNITS = 0.24;
+const SCAN_RIM_WIDTH_WORLD_UNITS = 0.12;
+const SCAN_TRAIL_WORLD_UNITS = 0.58;
+const SCAN_EDGE_SOFTNESS_WORLD_UNITS = 0.035;
+const MAX_WOBBLE_WORLD_UNITS = 0.052;
+const TAU = Math.PI * 2;
+
+function easeOutPower(progress: number): number {
+  return 1 - Math.pow(1 - progress, 1.35);
+}
+
+function clamp01(value: number): number {
+  return Math.min(Math.max(value, 0), 1);
+}
+
+/**
+ * Owns the shared TSL graph and its small, constant set of uniforms. Geometry
+ * attributes provide stable variation; no edge or fragment state is simulated
+ * on the CPU during a frame.
+ */
+export class BrainMaterials {
+  readonly fillMaterial = new MeshStandardNodeMaterial({
+    metalness: 0.03,
+    roughness: 0.88,
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1,
+  });
+  readonly primaryWireMaterial = new LineBasicNodeMaterial({
+    transparent: true,
+    depthTest: true,
+    depthWrite: false,
+    blending: AdditiveBlending,
+  });
+  readonly ghostWireMaterial = new LineBasicNodeMaterial({
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    blending: AdditiveBlending,
+  });
+
+  private readonly scanOrigin = uniform(new Vector3(-1.5, -1.5, 0));
+  private readonly scanRadius = uniform(0);
+  private readonly scanEnabled = uniform(1);
+  private readonly scanProgress = uniform(0);
+  private readonly energyTime = uniform(0);
+  private readonly energyEnabled = uniform(1);
+  private maximumScanRadius = 3;
+  private currentProgress = 0;
+  private currentMode: SceneDebugSnapshot['brain']['effect']['mode'] = 'scan';
+  private energyRequested = true;
+
+  constructor() {
+    // `float()` narrows Three's broad AttributeNode<string> declaration so the
+    // fluent arithmetic helpers remain strongly typed in TypeScript.
+    const phase = float(attribute<'float'>(WIRE_PHASE_ATTRIBUTE, 'float'));
+    const selection = float(attribute<'float'>(WIRE_SELECTION_ATTRIBUTE, 'float'));
+    const energyCoordinate = float(attribute<'float'>(WIRE_COORDINATE_ATTRIBUTE, 'float'));
+    const scanDistance = distance(positionWorld, this.scanOrigin);
+    const wobble = sin(positionWorld.y.mul(7.1).add(positionWorld.x.mul(4.3)))
+      .mul(0.033)
+      .add(sin(positionWorld.z.mul(9.4).add(positionWorld.y.mul(5.2))).mul(0.019));
+    const frontDistance = abs(scanDistance.add(wobble).sub(this.scanRadius));
+    const scanRim = smoothstep(float(0), SCAN_RIM_WIDTH_WORLD_UNITS, frontDistance).oneMinus();
+    const reached = smoothstep(
+      this.scanRadius.sub(SCAN_EDGE_SOFTNESS_WORLD_UNITS),
+      this.scanRadius.add(SCAN_EDGE_SOFTNESS_WORLD_UNITS),
+      scanDistance.add(wobble),
+    ).oneMinus();
+    const scanTrail = smoothstep(
+      this.scanRadius.sub(SCAN_TRAIL_WORLD_UNITS),
+      this.scanRadius,
+      scanDistance.add(wobble),
+    ).mul(reached);
+    const scanEntrance = smoothstep(float(0), float(0.06), this.scanProgress);
+
+    const phaseWave = sin(this.energyTime.mul(0.48).add(phase.mul(TAU))).mul(0.5).add(0.5);
+    const energyHead = fract(this.energyTime.mul(0.085).add(phase.mul(0.37)));
+    const directEnergyDistance = abs(energyCoordinate.sub(energyHead));
+    const wrappedEnergyDistance = min(directEnergyDistance, float(1).sub(directEnergyDistance));
+    const travelingNode = smoothstep(float(0.022), float(0.082), wrappedEnergyDistance)
+      .oneMinus()
+      .mul(selection)
+      .mul(this.energyEnabled);
+
+    const ambientWireOpacity = float(0.68).add(phaseWave.mul(0.12)).add(travelingNode.mul(0.72));
+    const scanningWireOpacity = scanRim
+      .mul(1.42)
+      .add(scanTrail.mul(0.52))
+      .add(reached.mul(0.08))
+      .mul(scanEntrance);
+    const primaryOpacity = clamp(
+      mix(ambientWireOpacity, scanningWireOpacity, this.scanEnabled),
+      float(0),
+      float(1),
+    );
+    const primaryEnergy = clamp(
+      scanRim.mul(this.scanEnabled).add(travelingNode),
+      float(0),
+      float(1),
+    );
+    this.primaryWireMaterial.opacityNode = primaryOpacity;
+    this.primaryWireMaterial.colorNode = mix(
+      color('#58bfe8'),
+      color('#d9fbff'),
+      primaryEnergy,
+    ).mul(float(1.06).add(primaryEnergy.mul(1.36)));
+
+    // Ghost wires are the through-surface anatomical context. They need to
+    // remain subordinate to the primary front-facing wires, but 3–5% opacity
+    // makes them disappear once the dense GLB wire layer and dark shell are
+    // composited together.
+    const ghostOpacity = float(0.12)
+      .add(phaseWave.mul(0.035))
+      .add(scanRim.mul(this.scanEnabled).mul(0.1));
+    this.ghostWireMaterial.opacityNode = ghostOpacity;
+    this.ghostWireMaterial.colorNode = mix(
+      color('#6f8fd4'),
+      color('#b7efff'),
+      scanRim.mul(this.scanEnabled),
+    ).mul(float(1.02).add(scanRim.mul(this.scanEnabled).mul(0.42)));
+
+    const fillFront = this.scanRadius.sub(FILL_LAG_WORLD_UNITS).add(wobble);
+    this.fillMaterial.maskNode = this.scanEnabled
+      .lessThan(0.5)
+      .or(scanDistance.lessThanEqual(fillFront));
+    const shellScanEnergy = scanRim.mul(this.scanEnabled).mul(0.34);
+    this.fillMaterial.colorNode = mix(color('#060b15'), color('#102d43'), shellScanEnergy);
+    this.fillMaterial.emissiveNode = mix(
+      color('#03101e'),
+      color('#176484'),
+      shellScanEnergy,
+    );
+  }
+
+  setBounds(bounds: Box3): void {
+    const size = bounds.getSize(new Vector3());
+    const center = bounds.getCenter(new Vector3());
+    this.scanOrigin.value.set(
+      bounds.min.x - size.x * 0.1,
+      bounds.min.y - size.y * 0.08,
+      center.z + size.z * 0.06,
+    );
+
+    let farthestDistance = 0;
+    for (const x of [bounds.min.x, bounds.max.x]) {
+      for (const y of [bounds.min.y, bounds.max.y]) {
+        for (const z of [bounds.min.z, bounds.max.z]) {
+          farthestDistance = Math.max(
+            farthestDistance,
+            this.scanOrigin.value.distanceTo(new Vector3(x, y, z)),
+          );
+        }
+      }
+    }
+    this.maximumScanRadius =
+      farthestDistance + FILL_LAG_WORLD_UNITS + MAX_WOBBLE_WORLD_UNITS + 0.08;
+  }
+
+  update(elapsedSeconds: number, phase: IntroPhase, quality: QualityTier): void {
+    const reducedMotion = quality === 'reduced-motion';
+    const isScanning = !reducedMotion && phase === 'brain-scan';
+    const progress = isScanning
+      ? clamp01(elapsedSeconds / CHOREOGRAPHY_TIMELINE.brainScan.duration)
+      : 1;
+    const scanActive = isScanning && progress < 1;
+
+    this.currentProgress = progress;
+    this.currentMode = reducedMotion ? 'reduced-static' : scanActive ? 'scan' : 'ambient';
+    this.scanProgress.value = progress;
+    this.scanRadius.value = easeOutPower(progress) * this.maximumScanRadius;
+    this.scanEnabled.value = scanActive ? 1 : 0;
+    this.energyTime.value = reducedMotion ? 0 : elapsedSeconds;
+    this.energyEnabled.value = this.energyRequested && !reducedMotion ? 1 : 0;
+  }
+
+  setEnergyVisible(visible: boolean): void {
+    this.energyRequested = visible;
+  }
+
+  isEnergyVisible(): boolean {
+    return this.energyRequested;
+  }
+
+  getDebugSnapshot(selectedEnergySegments: number): SceneDebugSnapshot['brain']['effect'] {
+    return {
+      mode: this.currentMode,
+      scanProgress: this.currentProgress,
+      scanRadius: this.scanRadius.value,
+      maximumScanRadius: this.maximumScanRadius,
+      fillLag: FILL_LAG_WORLD_UNITS,
+      scanOrigin: {
+        x: this.scanOrigin.value.x,
+        y: this.scanOrigin.value.y,
+        z: this.scanOrigin.value.z,
+      },
+      selectedEnergySegments,
+      energyNodesVisible: this.energyRequested,
+      primaryDepthTest: this.primaryWireMaterial.depthTest,
+      ghostDepthTest: this.ghostWireMaterial.depthTest,
+      bloomRequired: false,
+    };
+  }
+
+  dispose(): void {
+    this.fillMaterial.dispose();
+    this.primaryWireMaterial.dispose();
+    this.ghostWireMaterial.dispose();
+  }
+}

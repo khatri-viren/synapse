@@ -1,15 +1,16 @@
 import {
   Color,
-  NoToneMapping,
   PerspectiveCamera,
   Scene,
-  SRGBColorSpace,
   WebGPURenderer,
 } from 'three/webgpu';
 
 import { CameraRig } from './CameraRig';
+import { INTRO_CHECKPOINT_SECONDS, introPhaseFor } from './ChoreographyTimeline';
 import { CompositionScaffold } from './CompositionScaffold';
-import { BADGE_MARKER_SPECS, COMPOSITION_SAFE_FRAME } from './compositionSpec';
+import { COMPOSITION_SAFE_FRAME, type CompositionLayout } from './compositionSpec';
+import { HdrRenderPipeline } from './HdrRenderPipeline';
+import { qualityProfileFor } from './qualityProfiles';
 import type {
   IntroPhase,
   QualityTier,
@@ -26,13 +27,6 @@ const FRAME_SAMPLE_CAPACITY = 180;
 const DIAGNOSTIC_INTERVAL_MS = 250;
 const CAMERA_VERTICAL_FOV_DEGREES = 42;
 
-const INTRO_TIMELINE: ReadonlyArray<{ until: number; phase: IntroPhase }> = [
-  { until: 1.25, phase: 'brain-scan' },
-  { until: 2.05, phase: 'badge-arrival' },
-  { until: 2.85, phase: 'link-activation' },
-  { until: Number.POSITIVE_INFINITY, phase: 'ambient' },
-];
-
 type RendererBackendProbe = {
   isWebGPUBackend?: boolean;
 };
@@ -47,11 +41,8 @@ export interface SceneControllerOptions {
   canvas: HTMLCanvasElement;
   rendererPreference: RendererPreference;
   initialQuality: QualityTier;
+  layoutOverride?: CompositionLayout | null;
   onDiagnostics?: (diagnostics: RuntimeDiagnostics) => void;
-}
-
-function introPhaseFor(elapsedSeconds: number): IntroPhase {
-  return INTRO_TIMELINE.find(({ until }) => elapsedSeconds < until)?.phase ?? 'ambient';
 }
 
 function clampDelta(deltaMs: number): number {
@@ -78,22 +69,23 @@ export class SceneController {
 
   private readonly canvas: HTMLCanvasElement;
   private readonly rendererPreference: RendererPreference;
+  private readonly layoutOverride: CompositionLayout | null;
   private readonly onDiagnostics?: (diagnostics: RuntimeDiagnostics) => void;
   private readonly scene = new Scene();
   private readonly camera = new PerspectiveCamera(CAMERA_VERTICAL_FOV_DEGREES, 1, 0.1, 100);
   private readonly cameraRig = new CameraRig(this.camera);
-  private readonly composition = new CompositionScaffold();
+  private readonly composition: CompositionScaffold;
   private readonly reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
   private readonly finePointerQuery = window.matchMedia('(pointer: fine)');
   private readonly frameSamples: number[] = [];
 
   private renderer: WebGPURenderer | null = null;
+  private hdrPipeline: HdrRenderPipeline | null = null;
   private backend: RendererBackend = 'initializing';
   private runtimePhase: RuntimePhase = 'initializing';
   private started = false;
   private disposed = false;
   private manuallyPaused = false;
-  private forcedIntroPhase: IntroPhase | null = null;
   private lastFrameTimestamp: number | null = null;
   private lastDiagnosticsTimestamp = 0;
   private runtimeMessage = 'Initializing renderer…';
@@ -102,12 +94,15 @@ export class SceneController {
   constructor(options: SceneControllerOptions) {
     this.canvas = options.canvas;
     this.rendererPreference = options.rendererPreference;
+    this.layoutOverride = options.layoutOverride ?? null;
     this.onDiagnostics = options.onDiagnostics;
     this.startingQuality = options.initialQuality;
+    this.composition = new CompositionScaffold(options.initialQuality);
+    const startsReduced = options.initialQuality === 'reduced-motion';
     this.state = {
-      elapsedSeconds: 0,
+      elapsedSeconds: startsReduced ? INTRO_CHECKPOINT_SECONDS.ambient : 0,
       quality: options.initialQuality,
-      introPhase: 'brain-scan',
+      introPhase: startsReduced ? 'ambient' : 'brain-scan',
       pointerNdc: { x: 0, y: 0 },
       pointerStrength: 0,
     };
@@ -126,6 +121,11 @@ export class SceneController {
 
   async start(): Promise<void> {
     if (this.started || this.disposed) {
+      return;
+    }
+
+    if (this.rendererPreference === 'fallback') {
+      this.enterStaticFallback(new Error('Static fallback forced by the Phase 7 diagnostic.'));
       return;
     }
 
@@ -150,25 +150,32 @@ export class SceneController {
 
     this.renderer = renderer;
     renderer.setClearColor(CANVAS_BACKGROUND, 1);
-    renderer.outputColorSpace = SRGBColorSpace;
-    renderer.toneMapping = NoToneMapping;
 
     try {
       this.applySize();
       await renderer.init();
+      await this.composition.ready;
 
       if (this.disposed) {
         renderer.dispose();
         return;
       }
 
+      this.hdrPipeline = new HdrRenderPipeline(
+        renderer,
+        this.scene,
+        this.camera,
+        this.state.quality,
+      );
+
       this.backend = (renderer.backend as RendererBackendProbe).isWebGPUBackend === true ? 'webgpu' : 'webgl';
       this.runtimePhase = 'ready';
       this.runtimeMessage =
         this.backend === 'webgpu'
-          ? 'WebGPU backend initialized. Phase 1 composition scaffold ready.'
-          : 'WebGL2 backend initialized through WebGPURenderer. Phase 1 composition scaffold ready.';
+          ? 'WebGPU backend initialized. Anatomical GLB and TSL brain material ready.'
+          : 'WebGL2 backend initialized through WebGPURenderer. Anatomical GLB and TSL brain material ready.';
       this.started = true;
+      this.applySize();
       this.renderOnce();
       await this.syncAnimationLoop();
       this.publishDiagnostics(true);
@@ -183,8 +190,15 @@ export class SceneController {
     }
 
     this.state.quality = quality;
+    this.composition.setQualityTier(quality);
+    this.hdrPipeline?.setQuality(quality);
+    if (quality === 'reduced-motion') {
+      this.state.elapsedSeconds = INTRO_CHECKPOINT_SECONDS.ambient;
+      this.state.introPhase = 'ambient';
+    }
     if (quality !== 'desktop') {
       this.clearPointerIntent();
+      this.cameraRig.snapToBase();
     }
     this.applySize();
     this.renderOnce();
@@ -193,16 +207,23 @@ export class SceneController {
   }
 
   setIntroPhase(phase: IntroPhase): void {
-    this.forcedIntroPhase = phase;
+    if (this.state.quality === 'reduced-motion') {
+      this.state.elapsedSeconds = INTRO_CHECKPOINT_SECONDS.ambient;
+      this.state.introPhase = 'ambient';
+      this.renderOnce();
+      this.publishDiagnostics(true);
+      return;
+    }
+    this.state.elapsedSeconds = INTRO_CHECKPOINT_SECONDS[phase];
     this.state.introPhase = phase;
     this.renderOnce();
     this.publishDiagnostics(true);
   }
 
   replayIntro(): void {
-    this.forcedIntroPhase = null;
-    this.state.elapsedSeconds = 0;
-    this.state.introPhase = 'brain-scan';
+    const reducedMotion = this.state.quality === 'reduced-motion';
+    this.state.elapsedSeconds = reducedMotion ? INTRO_CHECKPOINT_SECONDS.ambient : 0;
+    this.state.introPhase = reducedMotion ? 'ambient' : 'brain-scan';
     this.lastFrameTimestamp = null;
     this.renderOnce();
     void this.syncAnimationLoop();
@@ -222,14 +243,61 @@ export class SceneController {
     this.publishDiagnostics(true);
   }
 
-  setBrainProxyVisible(visible: boolean): void {
-    this.composition.setBrainProxyVisible(visible);
+  setBrainFillVisible(visible: boolean): void {
+    this.composition.setBrainFillVisible(visible);
     this.renderOnce();
   }
 
-  setBadgeMarkersVisible(visible: boolean): void {
-    this.composition.setBadgeMarkersVisible(visible);
+  setPrimaryWiresVisible(visible: boolean): void {
+    this.composition.setPrimaryWiresVisible(visible);
     this.renderOnce();
+  }
+
+  setGhostWiresVisible(visible: boolean): void {
+    this.composition.setGhostWiresVisible(visible);
+    this.renderOnce();
+  }
+
+  setBrainAnchorsVisible(visible: boolean): void {
+    this.composition.setBrainAnchorsVisible(visible);
+    this.renderOnce();
+  }
+
+  setWireEnergyNodesVisible(visible: boolean): void {
+    this.composition.setWireEnergyNodesVisible(visible);
+    this.renderOnce();
+    this.publishDiagnostics(true);
+  }
+
+  setBadgeActorsVisible(visible: boolean): void {
+    this.composition.setBadgeActorsVisible(visible);
+    this.renderOnce();
+  }
+
+  setBadgeSocketsVisible(visible: boolean): void {
+    this.composition.setBadgeSocketsVisible(visible);
+    this.renderOnce();
+  }
+
+  setBadgeOrbitGuidesVisible(visible: boolean): void {
+    this.composition.setBadgeOrbitGuidesVisible(visible);
+    this.renderOnce();
+  }
+
+  setConnectionsVisible(visible: boolean): void {
+    this.composition.setConnectionsVisible(visible);
+    this.renderOnce();
+  }
+
+  setPacketsVisible(visible: boolean): void {
+    this.composition.setPacketsVisible(visible);
+    this.renderOnce();
+  }
+
+  setBloomEnabled(enabled: boolean): void {
+    this.hdrPipeline?.setBloomEnabled(enabled);
+    this.renderOnce();
+    this.publishDiagnostics(true);
   }
 
   getDebugSnapshot(): SceneDebugSnapshot {
@@ -263,19 +331,11 @@ export class SceneController {
         enabled: this.isPointerParallaxEnabled(),
       },
       supportFit: this.cameraRig.validateSupportFit(),
-      markers: BADGE_MARKER_SPECS.map((spec) => {
-        const world = this.composition.getMarkerWorldPosition(spec.id);
-        const ndc = world.clone().project(this.camera);
-
-        return {
-          id: spec.id,
-          direction: spec.direction,
-          depthRole: spec.depthRole,
-          world: { x: world.x, y: world.y, z: world.z },
-          ndc: { x: ndc.x, y: ndc.y, z: ndc.z },
-          insideViewport: Math.abs(ndc.x) <= 1 && Math.abs(ndc.y) <= 1 && ndc.z >= -1 && ndc.z <= 1,
-        };
-      }),
+      brain: this.composition.getBrainDebugSnapshot(),
+      badgeOrbitValidation: this.composition.getBadgeOrbitValidation(),
+      badges: this.getBadgeScreenSnapshots(),
+      network: this.composition.getNetworkDebugSnapshot(),
+      rendering: this.getRenderPipelineSnapshot(),
     };
   }
 
@@ -296,6 +356,11 @@ export class SceneController {
 
     if (this.renderer !== null && this.started) {
       void this.renderer.setAnimationLoop(null);
+    }
+
+    if (this.hdrPipeline !== null) {
+      this.hdrPipeline.dispose();
+      this.hdrPipeline = null;
     }
 
     if (this.renderer !== null) {
@@ -374,7 +439,7 @@ export class SceneController {
     const deltaMs = this.lastFrameTimestamp === null ? 0 : clampDelta(timestamp - this.lastFrameTimestamp);
     this.lastFrameTimestamp = timestamp;
     this.state.elapsedSeconds += deltaMs / 1_000;
-    this.state.introPhase = this.forcedIntroPhase ?? introPhaseFor(this.state.elapsedSeconds);
+    this.state.introPhase = introPhaseFor(this.state.elapsedSeconds);
 
     if (deltaMs > 0) {
       this.frameSamples.push(deltaMs);
@@ -394,6 +459,7 @@ export class SceneController {
       !this.manuallyPaused &&
       !document.hidden &&
       this.state.quality !== 'reduced-motion' &&
+      qualityProfileFor(this.state.quality).continuousAnimation &&
       this.runtimePhase !== 'fallback'
     );
   }
@@ -414,19 +480,20 @@ export class SceneController {
     const { width, height } = this.canvas.getBoundingClientRect();
     const safeWidth = Math.max(1, Math.round(width));
     const safeHeight = Math.max(1, Math.round(height));
-    const pixelRatioCap = this.state.quality === 'desktop' ? 1.75 : 1;
+    const pixelRatioCap = qualityProfileFor(this.state.quality).dprCap;
     const pixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 1), pixelRatioCap);
 
     this.renderer.setPixelRatio(pixelRatio);
     this.renderer.setSize(safeWidth, safeHeight, false);
-    const layout = safeWidth <= 767 || safeWidth / safeHeight < 0.85 ? 'compact' : 'wide';
+    const layout =
+      this.layoutOverride ?? (safeWidth <= 767 || safeWidth / safeHeight < 0.85 ? 'compact' : 'wide');
     this.composition.setLayout(layout);
     this.cameraRig.fit(safeWidth, safeHeight, this.composition.getSupportPoints());
   }
 
   private isPointerParallaxEnabled(): boolean {
     return (
-      this.state.quality === 'desktop' &&
+      qualityProfileFor(this.state.quality).pointerParallax &&
       this.finePointerQuery.matches &&
       !this.reducedMotionQuery.matches
     );
@@ -472,17 +539,56 @@ export class SceneController {
   }
 
   private renderCurrentState(deltaSeconds: number): void {
-    if (this.renderer === null) {
+    if (this.renderer === null || this.hdrPipeline === null) {
       return;
     }
 
+    this.composition.update(this.state);
     this.cameraRig.update(
       deltaSeconds,
       this.state.pointerNdc,
       this.state.pointerStrength,
       this.isPointerParallaxEnabled(),
     );
-    this.renderer.render(this.scene, this.camera);
+    this.hdrPipeline.render();
+  }
+
+  private getBadgeScreenSnapshots(): SceneDebugSnapshot['badges'] {
+    const badges = this.composition.getBadgeDebugSnapshot();
+
+    return badges.map((badge) => {
+      const actorPoint = this.composition.getBadgeActorWorldPosition(badge.id);
+      const socketPoint = this.composition.getBadgeSocketWorldPosition(badge.id);
+      const actorNdc = actorPoint.clone().project(this.camera);
+      const socketNdc = socketPoint.clone().project(this.camera);
+      const nearestBadgeDistance = Math.min(
+        ...badges
+          .filter((candidate) => candidate.id !== badge.id)
+          .map((candidate) => {
+            const dx = candidate.actorWorld.x - badge.actorWorld.x;
+            const dy = candidate.actorWorld.y - badge.actorWorld.y;
+            const dz = candidate.actorWorld.z - badge.actorWorld.z;
+            return Math.hypot(dx, dy, dz);
+          }),
+      );
+
+      return {
+        ...badge,
+        depthRole: badge.actorWorld.z >= 0 ? 'front' : 'behind',
+        actorNdc: { x: actorNdc.x, y: actorNdc.y, z: actorNdc.z },
+        socketNdc: { x: socketNdc.x, y: socketNdc.y, z: socketNdc.z },
+        insideViewport:
+          Math.abs(actorNdc.x) <= 1 &&
+          Math.abs(actorNdc.y) <= 1 &&
+          actorNdc.z >= -1 &&
+          actorNdc.z <= 1,
+        insideSafeFrame:
+          Math.abs(actorNdc.x) <= COMPOSITION_SAFE_FRAME.x &&
+          Math.abs(actorNdc.y) <= COMPOSITION_SAFE_FRAME.y,
+        distanceFromBrain: actorPoint.length(),
+        nearestBadgeDistance,
+      };
+    });
   }
 
   private enterStaticFallback(error: unknown): void {
@@ -492,6 +598,11 @@ export class SceneController {
 
     if (this.renderer !== null && this.started) {
       void this.renderer.setAnimationLoop(null);
+    }
+
+    if (this.hdrPipeline !== null) {
+      this.hdrPipeline.dispose();
+      this.hdrPipeline = null;
     }
 
     if (this.renderer !== null) {
@@ -509,6 +620,15 @@ export class SceneController {
 
     this.lastDiagnosticsTimestamp = timestamp;
     const cameraSnapshot = this.cameraRig.getSnapshot();
+    const brainSnapshot = this.composition.getBrainDebugSnapshot();
+    const badgeValidation = this.composition.getBadgeOrbitValidation();
+    const networkSnapshot = this.composition.getNetworkDebugSnapshot();
+    const renderPipelineSnapshot = this.getRenderPipelineSnapshot();
+    const maximumEndpointError = Math.max(
+      ...networkSnapshot.links.map((link) =>
+        Math.max(link.startError, link.visibleEndError, link.anchorError ?? 0),
+      ),
+    );
     this.onDiagnostics?.({
       backend: this.backend,
       rendererPreference: this.rendererPreference,
@@ -518,6 +638,7 @@ export class SceneController {
       isPaused: this.manuallyPaused,
       isDocumentHidden: document.hidden,
       frameP95Ms: percentile95(this.frameSamples),
+      frameBudgetMs: renderPipelineSnapshot.frameBudgetMs,
       compositionLayout: this.composition.getLayout(),
       cameraPosition: {
         x: cameraSnapshot.position.x,
@@ -525,7 +646,36 @@ export class SceneController {
         z: cameraSnapshot.position.z,
       },
       pointerStrength: this.state.pointerStrength,
+      brainTopology: `GLB · ${brainSnapshot.totalTriangles.toLocaleString()} tris · ${brainSnapshot.primaryWireSegments.toLocaleString()} wires · ${brainSnapshot.effect.mode} ${Math.round(brainSnapshot.effect.scanProgress * 100)}%`,
+      badgeOrbits: `brain ${badgeValidation.minimumBrainClearance.toFixed(2)} · pair ${badgeValidation.minimumBadgeClearance.toFixed(2)} · side ${badgeValidation.maximumSameSideCount}/3 · behind ${badgeValidation.maximumBehindCount}/2 · hidden ${badgeValidation.maximumOccludedCount}/2 · cluster ${badgeValidation.maximumCloseGroupSize}/2 · ${badgeValidation.distributionSafe ? 'safe' : 'unsafe'}`,
+      networkLinks: `${networkSnapshot.links.length} links × ${networkSnapshot.links[0]?.sampleCount ?? 0} samples · ${networkSnapshot.packets.configuredCountPerLink}/link (${networkSnapshot.packets.activeCount} visible) → brain · endpoint ${maximumEndpointError.toExponential(1)}`,
+      imagePipeline: `${renderPipelineSnapshot.hdrBuffer} · bloom ${renderPipelineSnapshot.bloom.enabled ? `${renderPipelineSnapshot.bloom.resolutionScale.toFixed(2)}×` : 'off'} · exposure ${renderPipelineSnapshot.exposure.toFixed(2)} · ${renderPipelineSnapshot.toneMapping} → ${renderPipelineSnapshot.outputColorSpace} · ${renderPipelineSnapshot.outputConversions} conversion`,
       message: this.runtimeMessage,
     });
+  }
+
+  private getRenderPipelineSnapshot(): SceneDebugSnapshot['rendering'] {
+    if (this.hdrPipeline !== null) return this.hdrPipeline.getDebugSnapshot();
+
+    return {
+      outputOwner: 'static-fallback',
+      scenePasses: 0,
+      hdrBuffer: 'none',
+      bloom: {
+        enabled: false,
+        strength: 0,
+        radius: 0,
+        threshold: 0,
+        smoothWidth: 0,
+        resolutionScale: 0,
+      },
+      exposure: 1,
+      toneMapping: 'none',
+      outputColorSpace: 'sRGB',
+      outputConversions: 1,
+      temporalAA: false,
+      dprCap: qualityProfileFor('fallback').dprCap,
+      frameBudgetMs: null,
+    };
   }
 }

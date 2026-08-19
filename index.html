@@ -21,10 +21,52 @@
         <div class="fallback__grid" aria-hidden="true"></div>
         <div class="fallback__content">
           <p class="fallback__eyebrow">Neural network</p>
-          <h1 id="fallback-title">Interactive scene unavailable</h1>
+          <figure
+            class="fallback__poster"
+            role="img"
+            aria-label="A cyan wireframe brain receiving dashed signals from five colored platform nodes"
+          >
+            <svg viewBox="0 0 720 520" aria-hidden="true" focusable="false">
+              <defs>
+                <radialGradient id="fallback-core" cx="50%" cy="44%" r="58%">
+                  <stop offset="0" stop-color="#14334f" stop-opacity="0.82" />
+                  <stop offset="1" stop-color="#050914" stop-opacity="0.22" />
+                </radialGradient>
+                <filter id="fallback-glow" x="-60%" y="-60%" width="220%" height="220%">
+                  <feGaussianBlur stdDeviation="5" result="blur" />
+                  <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
+              </defs>
+              <g class="fallback__links">
+                <path d="M130 108 C220 96 252 142 318 198" />
+                <path d="M588 104 C502 96 468 142 402 198" />
+                <path d="M630 282 C524 274 470 270 424 270" />
+                <path d="M126 390 C218 380 252 340 314 316" />
+                <path d="M556 424 C488 394 454 350 407 320" />
+              </g>
+              <ellipse class="fallback__brain-fill" cx="360" cy="266" rx="130" ry="154" />
+              <g class="fallback__brain" filter="url(#fallback-glow)">
+                <path d="M354 133 C324 102 270 114 249 153 C213 165 204 212 225 239 C204 273 221 319 253 331 C257 374 302 398 345 369 L354 133 Z" />
+                <path d="M366 133 C396 102 450 114 471 153 C507 165 516 212 495 239 C516 273 499 319 467 331 C463 374 418 398 375 369 L366 133 Z" />
+                <path d="M354 148 C324 151 311 174 316 199 C277 187 252 213 260 244 C230 254 236 294 267 302 C260 330 285 353 314 344 C318 367 338 375 354 358" />
+                <path d="M366 148 C396 151 409 174 404 199 C443 187 468 213 460 244 C490 254 484 294 453 302 C460 330 435 353 406 344 C402 367 382 375 366 358" />
+                <path d="M281 164 C265 191 278 209 300 218 M244 232 C272 222 290 240 286 266 M267 303 C292 290 317 306 313 332" />
+                <path d="M439 164 C455 191 442 209 420 218 M476 232 C448 222 430 240 434 266 M453 303 C428 290 403 306 407 332" />
+                <path d="M342 384 C347 408 347 426 345 448 M378 384 C373 408 373 426 375 448 M345 448 C355 455 365 455 375 448" />
+              </g>
+              <g class="fallback__nodes" filter="url(#fallback-glow)">
+                <g transform="translate(130 108)" style="--node: #ff4ecb"><circle r="25" /><circle r="7" /></g>
+                <g transform="translate(588 104)" style="--node: #4c8dff"><circle r="25" /><path d="M3 15 V2 H10 L12 -8 H3 V-13 C3-17 5-19 10-19 H15 V-27 H7 C-4-27-11-20-11-10 V-8 H-17 V2 H-11 V15 Z" /></g>
+                <g transform="translate(630 282)" style="--node: #95d85b"><circle r="25" /><path d="M-9 10 L-6-13 L5-17 L13-12 L10 12 Z" /></g>
+                <g transform="translate(126 390)" style="--node: #b278ff"><circle r="25" /><path d="M-11-4 H11 M-11 5 H11 M-4-11 V12 M5-11 V12" /></g>
+                <g transform="translate(556 424)" style="--node: #25d366"><circle r="25" /><path d="M-10 13 L-6 4 A16 16 0 1 1 1 9 Z" /></g>
+              </g>
+            </svg>
+          </figure>
+          <h1 id="fallback-title">Neural signals, represented statically</h1>
           <p>
-            Your browser could not start the graphics renderer. The final experience remains a
-            dark neural-network visualization with inbound platform signals.
+            This browser could not start WebGPU or WebGL2. The static poster preserves the core
+            idea: five platform signals flowing into a central wireframe brain.
           </p>
         </div>
       </section>

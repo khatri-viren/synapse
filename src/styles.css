@@ -72,8 +72,59 @@ body {
 
 .fallback__content {
   position: relative;
-  width: min(30rem, calc(100vw - 3rem));
+  width: min(44rem, calc(100vw - 2rem));
   text-align: center;
+}
+
+.fallback__poster {
+  width: 100%;
+  margin: -1.25rem auto -2.2rem;
+}
+
+.fallback__poster svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.fallback__brain-fill {
+  fill: url(#fallback-core);
+  stroke: rgba(88, 191, 232, 0.18);
+  stroke-width: 1;
+}
+
+.fallback__brain,
+.fallback__links {
+  fill: none;
+  stroke: #69d7f7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.fallback__brain {
+  stroke-width: 2.15;
+}
+
+.fallback__links {
+  opacity: 0.58;
+  stroke-width: 1.4;
+  stroke-dasharray: 5 8;
+}
+
+.fallback__nodes circle:first-child {
+  fill: color-mix(in srgb, var(--node) 22%, #07101d);
+  stroke: var(--node);
+  stroke-width: 2;
+}
+
+.fallback__nodes circle:not(:first-child),
+.fallback__nodes path {
+  fill: var(--node);
+  stroke: var(--node);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
 }
 
 .fallback__eyebrow,
@@ -88,7 +139,7 @@ body {
 
 .fallback__content h1 {
   margin: 0;
-  font-size: clamp(1.75rem, 5vw, 3.15rem);
+  font-size: clamp(1.45rem, 4vw, 2.65rem);
   font-weight: 600;
   letter-spacing: -0.04em;
 }
@@ -333,6 +384,11 @@ body {
 }
 
 @media (max-width: 767px) {
+  .fallback__poster {
+    margin-top: -0.5rem;
+    margin-bottom: -1.2rem;
+  }
+
   .debug-panel {
     top: max(0.75rem, env(safe-area-inset-top));
     right: max(0.75rem, env(safe-area-inset-right));
