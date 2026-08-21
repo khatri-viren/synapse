@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Colorflow replica</title>
+    <style>
+      html, body { width: 100%; min-height: 100%; margin: 0; overflow: hidden; background: #160114; }
+
+      .colorflow {
+        position: fixed;
+        inset: 0;
+        overflow: hidden;
+        isolation: isolate;
+        background: linear-gradient(90deg, #2f5279 0%, #6f486b 31%, #741020 61%, #210015 88%, #25142e 100%);
+      }
+
+      /* Broad colour fields beginning offscreen: this matches the soft, seamless
+         structure of the reference rather than showing individual gradient circles. */
+      .colour, .river, .grain { position: absolute; pointer-events: none; }
+
+      .blue {
+        z-index: 1;
+        width: 110vmax; height: 120vmax; top: -36vmax; left: -68vmax;
+        border-radius: 50%;
+        background: radial-gradient(ellipse at 65% 52%, rgba(89, 126, 166, .98) 0%, rgba(54, 103, 158, .9) 31%, rgba(21, 66, 123, .68) 55%, transparent 76%);
+        filter: blur(58px);
+        animation: blue-flow 38s ease-in-out infinite alternate;
+      }
+
+      .mauve {
+        z-index: 2;
+        width: 118vmax; height: 90vmax; top: 4vmax; left: -16vmax;
+        border-radius: 48% 52% 45% 55% / 52% 48% 52% 48%;
+        background: radial-gradient(ellipse at 49% 58%, rgba(180, 142, 157, .7) 0%, rgba(133, 88, 121, .72) 38%, rgba(91, 47, 93, .48) 59%, transparent 78%);
+        filter: blur(68px);
+        animation: mauve-flow 43s ease-in-out infinite alternate;
+      }
+
+      .coral {
+        z-index: 3;
+        width: 98vmax; height: 115vmax; top: -31vmax; left: 8vmax;
+        border-radius: 53% 47% 48% 52% / 45% 55% 45% 55%;
+        background: radial-gradient(ellipse at 51% 49%, rgba(255, 94, 53, .99) 0%, rgba(232, 56, 39, .94) 25%, rgba(183, 27, 42, .74) 48%, rgba(120, 15, 43, .32) 65%, transparent 80%);
+        filter: blur(62px);
+        mix-blend-mode: screen;
+        animation: coral-flow 35s ease-in-out infinite alternate;
+      }
+
+      .wine {
+        z-index: 4;
+        width: 112vmax; height: 128vmax; top: -43vmax; right: -71vmax;
+        border-radius: 52% 48% 54% 46% / 48% 50% 50% 52%;
+        background: radial-gradient(ellipse at 34% 55%, rgba(62, 0, 27, .98) 0%, rgba(43, 0, 23, .94) 37%, rgba(22, 0, 20, .76) 62%, transparent 79%);
+        filter: blur(55px);
+        animation: wine-flow 45s ease-in-out infinite alternate;
+      }
+
+      /* The characteristic inky wave in the lower third of the supplied reference. */
+      .river {
+        z-index: 6;
+        width: 126%; height: 37%; top: 66%; left: -15%;
+        border-radius: 50%;
+        background: radial-gradient(ellipse at 50% 44%, rgba(1, 1, 20, .99) 0%, rgba(1, 1, 18, .95) 37%, rgba(3, 2, 24, .73) 56%, transparent 76%);
+        filter: blur(26px);
+        transform: rotate(6deg) scaleY(.8);
+        transform-origin: center;
+        animation: river-flow 44s ease-in-out infinite alternate;
+      }
+
+      .edge {
+        position: absolute;
+        z-index: 7;
+        inset: 0;
+        pointer-events: none;
+        background: radial-gradient(ellipse at center, transparent 44%, rgba(9, 0, 14, .23) 100%);
+      }
+
+      .grain {
+        z-index: 8;
+        inset: 0;
+        width: 100%; height: 100%;
+        opacity: .19;
+        mix-blend-mode: overlay;
+      }
+
+      @keyframes blue-flow { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(9vmax, -4vmax, 0) scale(1.08); } }
+      @keyframes mauve-flow { from { transform: translate3d(-3vmax, 0, 0) scale(1); } to { transform: translate3d(7vmax, 6vmax, 0) scale(1.07); } }
+      @keyframes coral-flow { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(8vmax, 5vmax, 0) scale(1.09); } }
+      @keyframes wine-flow { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(-8vmax, 6vmax, 0) scale(1.08); } }
+      @keyframes river-flow { from { transform: rotate(6deg) translate3d(0, 0, 0) scaleY(.8); } to { transform: rotate(3deg) translate3d(2vmax, -3vmax, 0) scaleY(.88); } }
+
+      @media (prefers-reduced-motion: reduce) { .colour, .river { animation: none; } }
+    </style>
+  </head>
+  <body>
+    <main class="colorflow" aria-label="Animated abstract blue, coral, burgundy, and violet background">
+      <i class="colour blue"></i>
+      <i class="colour mauve"></i>
+      <i class="colour coral"></i>
+      <i class="colour wine"></i>
+      <i class="river"></i>
+      <i class="edge"></i>
+      <canvas class="grain" id="grain" aria-hidden="true"></canvas>
+    </main>
+
+    <script>
+      const grain = document.querySelector('#grain');
+      const context = grain.getContext('2d', { alpha: false });
+      const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+      const size = 360;
+      let frame;
+      let lastFrame = 0;
+
+      grain.width = size;
+      grain.height = size;
+
+      function drawGrain(time = 0) {
+        if (time - lastFrame < 85 && !reducedMotion.matches) {
+          frame = requestAnimationFrame(drawGrain);
+          return;
+        }
+
+        lastFrame = time;
+        const texture = context.createImageData(size, size);
+        for (let pixel = 0; pixel < texture.data.length; pixel += 4) {
+          const value = 76 + Math.random() * 116;
+          texture.data[pixel] = value;
+          texture.data[pixel + 1] = value;
+          texture.data[pixel + 2] = value;
+          texture.data[pixel + 3] = 255;
+        }
+        context.putImageData(texture, 0, 0);
+        if (!reducedMotion.matches) frame = requestAnimationFrame(drawGrain);
+      }
+
+      drawGrain();
+      reducedMotion.addEventListener('change', () => {
+        cancelAnimationFrame(frame);
+        drawGrain();
+      });
+    </script>
+  </body>
+</html>

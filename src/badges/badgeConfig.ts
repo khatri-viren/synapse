@@ -21,6 +21,11 @@ export interface BadgeOrbitSpec {
 }
 
 export const BADGE_ACTOR_RADIUS = 0.42;
+export const HERO_ORBIT_SCALE = 0.85;
+
+function heroOrbitRadius(radius: number): number {
+  return radius * HERO_ORBIT_SCALE;
+}
 
 export const BADGE_ORBIT_SPECS: readonly BadgeOrbitSpec[] = [
   {
@@ -35,14 +40,14 @@ export const BADGE_ORBIT_SPECS: readonly BadgeOrbitSpec[] = [
     layouts: {
       wide: {
         center: [0, 0.04, 0],
-        radiusX: 2.65,
-        radiusY: 2.75,
+        radiusX: heroOrbitRadius(2.65),
+        radiusY: heroOrbitRadius(2.75),
         rotation: [1.05, -0.2, 0.89],
       },
       compact: {
         center: [0, 0.02, 0],
         radiusX: 1.72,
-        radiusY: 3.2,
+        radiusY: heroOrbitRadius(3.2),
         rotation: [1.15, -0.08, 0.344],
       },
     },
@@ -53,20 +58,20 @@ export const BADGE_ORBIT_SPECS: readonly BadgeOrbitSpec[] = [
     plateColor: '#1557c7',
     accentColor: '#4c8dff',
     angularSpeed: 0.22,
-    phaseOffset: 1.416,
+    phaseOffset: 3.27416,
     orbitDirection: -1,
     authoredTilt: [-0.055, 0.1, -0.045],
     layouts: {
       wide: {
         center: [-0.04, 0.08, 0],
-        radiusX: 2.8,
-        radiusY: 2.85,
+        radiusX: heroOrbitRadius(2.8),
+        radiusY: heroOrbitRadius(2.85),
         rotation: [-1.15, 0.25, 0.595],
       },
       compact: {
         center: [-0.03, 0.05, 0],
         radiusX: 1.74,
-        radiusY: 3.2,
+        radiusY: heroOrbitRadius(3.2),
         rotation: [-1.15, 0.1, -0.245],
       },
     },
@@ -77,20 +82,20 @@ export const BADGE_ORBIT_SPECS: readonly BadgeOrbitSpec[] = [
     plateColor: '#4f7f31',
     accentColor: '#95d85b',
     angularSpeed: 0.22,
-    phaseOffset: 5.30175,
-    orbitDirection: -1,
+    phaseOffset: 5.80018,
+    orbitDirection: 1,
     authoredTilt: [0.065, -0.08, 0.05],
     layouts: {
       wide: {
         center: [0.06, -0.02, 0],
-        radiusX: 2.72,
-        radiusY: 2.8,
+        radiusX: heroOrbitRadius(2.72),
+        radiusY: heroOrbitRadius(2.8),
         rotation: [1.08, -0.35, -0.58],
       },
       compact: {
         center: [0.04, 0, 0],
         radiusX: 1.8,
-        radiusY: 3.2,
+        radiusY: heroOrbitRadius(3.2),
         rotation: [1.15, 0.06, -0.48],
       },
     },
@@ -101,20 +106,20 @@ export const BADGE_ORBIT_SPECS: readonly BadgeOrbitSpec[] = [
     plateColor: '#4a154b',
     accentColor: '#b278ff',
     angularSpeed: 0.22,
-    phaseOffset: 4.57,
-    orbitDirection: 1,
+    phaseOffset: 0.58821,
+    orbitDirection: -1,
     authoredTilt: [-0.07, 0.11, -0.04],
     layouts: {
       wide: {
         center: [-0.05, -0.06, 0],
-        radiusX: 2.6,
-        radiusY: 2.85,
+        radiusX: heroOrbitRadius(2.6),
+        radiusY: heroOrbitRadius(2.85),
         rotation: [-0.45, 0.75, 1.25],
       },
       compact: {
         center: [-0.04, -0.03, 0],
         radiusX: 1.82,
-        radiusY: 3.26,
+        radiusY: heroOrbitRadius(3.26),
         rotation: [-0.55, 0.65, 1.1],
       },
     },
@@ -125,20 +130,20 @@ export const BADGE_ORBIT_SPECS: readonly BadgeOrbitSpec[] = [
     plateColor: '#168448',
     accentColor: '#25d366',
     angularSpeed: 0.22,
-    phaseOffset: 4.02325,
-    orbitDirection: 1,
+    phaseOffset: 3.81973,
+    orbitDirection: -1,
     authoredTilt: [0.045, 0.075, -0.035],
     layouts: {
       wide: {
         center: [0.04, -0.08, 0],
-        radiusX: 2.45,
-        radiusY: 2.85,
+        radiusX: heroOrbitRadius(2.45),
+        radiusY: heroOrbitRadius(2.85),
         rotation: [-1.22, -0.1, -0.82],
       },
       compact: {
         center: [0.02, -0.06, 0],
         radiusX: 1.74,
-        radiusY: 3.24,
+        radiusY: heroOrbitRadius(3.24),
         rotation: [-1.15, 0.09, 0.679],
       },
     },

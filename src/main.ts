@@ -2,6 +2,7 @@ import './styles.css';
 
 import { DebugPanel } from './debug/DebugPanel';
 import { SceneController } from './scene/SceneController';
+import { HeroUI } from './ui/HeroUI';
 import type { CompositionLayout } from './scene/compositionSpec';
 import type {
   QualityOverride,
@@ -75,18 +76,23 @@ function replaceDebugQueryParameter(key: 'renderer' | 'quality', value: string):
 const app = document.querySelector<HTMLElement>('#app');
 const canvas = document.querySelector<HTMLCanvasElement>('#scene-canvas');
 const fallback = document.querySelector<HTMLElement>('#renderer-fallback');
+const heroScroll = document.querySelector<HTMLElement>('#hero-scroll');
+const heroStage = document.querySelector<HTMLElement>('#hero-stage');
 
-if (app === null || canvas === null || fallback === null) {
+if (app === null || canvas === null || fallback === null || heroScroll === null || heroStage === null) {
   throw new Error('Neural composition application shell could not be initialized.');
 }
 
 const launch = readLaunchOptions();
 let debugPanel: DebugPanel | null = null;
 let latestDiagnostics: RuntimeDiagnostics | null = null;
+let controller: SceneController | null = null;
+const heroUi = new HeroUI(heroStage, () => controller?.replayIntro());
 
 const updateRuntimePresentation = (diagnostics: RuntimeDiagnostics): void => {
   latestDiagnostics = diagnostics;
   const fallbackVisible = diagnostics.runtimePhase === 'fallback';
+  heroStage.classList.toggle('is-renderer-fallback', fallbackVisible);
   fallback.hidden = !fallbackVisible;
   if (fallbackVisible) {
     canvas.setAttribute('aria-hidden', 'true');
@@ -102,11 +108,14 @@ const updateRuntimePresentation = (diagnostics: RuntimeDiagnostics): void => {
   debugPanel?.update(diagnostics);
 };
 
-const controller = new SceneController({
+controller = new SceneController({
   canvas,
   rendererPreference: launch.rendererPreference,
   initialQuality: resolveInitialQuality(launch.qualityOverride),
   layoutOverride: launch.layoutOverride,
+  heroElement: heroScroll,
+  screenBridgeHost: heroStage,
+  onFrameState: (state) => heroUi.update(state),
   onDiagnostics: updateRuntimePresentation,
 });
 
@@ -117,24 +126,28 @@ if (launch.debugEnabled) {
     actions: {
       onRendererPreference: (preference) => replaceDebugQueryParameter('renderer', preference),
       onQualityOverride: (quality) => replaceDebugQueryParameter('quality', quality),
-      onIntroPhase: (phase) => controller.setIntroPhase(phase),
-      onReplay: () => controller.replayIntro(),
-      onPausedChange: (paused) => controller.setPaused(paused),
-      onBrainFillVisibility: (visible) => controller.setBrainFillVisible(visible),
-      onPrimaryWiresVisibility: (visible) => controller.setPrimaryWiresVisible(visible),
-      onGhostWiresVisibility: (visible) => controller.setGhostWiresVisible(visible),
-      onBrainAnchorsVisibility: (visible) => controller.setBrainAnchorsVisible(visible),
-      onWireEnergyNodesVisibility: (visible) => controller.setWireEnergyNodesVisible(visible),
-      onBadgeActorsVisibility: (visible) => controller.setBadgeActorsVisible(visible),
-      onBadgeSocketsVisibility: (visible) => controller.setBadgeSocketsVisible(visible),
-      onBadgeOrbitGuidesVisibility: (visible) => controller.setBadgeOrbitGuidesVisible(visible),
-      onConnectionsVisibility: (visible) => controller.setConnectionsVisible(visible),
-      onPacketsVisibility: (visible) => controller.setPacketsVisible(visible),
-      onBloomVisibility: (visible) => controller.setBloomEnabled(visible),
+      onIntroPhase: (phase) => controller?.setIntroPhase(phase),
+      onReplay: () => controller?.replayIntro(),
+      onPausedChange: (paused) => controller?.setPaused(paused),
+      onBrainFillVisibility: (visible) => controller?.setBrainFillVisible(visible),
+      onPrimaryWiresVisibility: (visible) => controller?.setPrimaryWiresVisible(visible),
+      onGhostWiresVisibility: (visible) => controller?.setGhostWiresVisible(visible),
+      onBrainAnchorsVisibility: (visible) => controller?.setBrainAnchorsVisible(visible),
+      onWireEnergyNodesVisibility: (visible) => controller?.setWireEnergyNodesVisible(visible),
+      onBadgeActorsVisibility: (visible) => controller?.setBadgeActorsVisible(visible),
+      onBadgeSocketsVisibility: (visible) => controller?.setBadgeSocketsVisible(visible),
+      onBadgeOrbitGuidesVisibility: (visible) => controller?.setBadgeOrbitGuidesVisible(visible),
+      onConnectionsVisibility: (visible) => controller?.setConnectionsVisible(visible),
+      onPacketsVisibility: (visible) => controller?.setPacketsVisible(visible),
+      onAtmosphereVisibility: (visible) => controller?.setAtmosphereVisible(visible),
+      onBloomVisibility: (visible) => controller?.setBloomEnabled(visible),
     },
   });
 
-  window.__NEURAL_DEBUG__ = () => controller.getDebugSnapshot();
+  window.__NEURAL_DEBUG__ = () => {
+    if (controller === null) throw new Error('Scene controller is unavailable.');
+    return controller.getDebugSnapshot();
+  };
 
   if (latestDiagnostics !== null) {
     debugPanel.update(latestDiagnostics);
@@ -145,7 +158,8 @@ void controller.start();
 
 const dispose = (): void => {
   delete window.__NEURAL_DEBUG__;
-  controller.dispose();
+  controller?.dispose();
+  heroUi.dispose();
   debugPanel?.dispose();
 };
 

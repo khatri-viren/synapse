@@ -58,7 +58,13 @@ interface BrainValidation {
 
 type BrainLayerVisibility = Omit<
   SceneDebugSnapshot['visibility'],
-  'badgeActors' | 'badgeSockets' | 'badgeOrbitGuides' | 'connections' | 'packets'
+  | 'badgeActors'
+  | 'badgeSockets'
+  | 'badgeOrbitGuides'
+  | 'connections'
+  | 'packets'
+  | 'headline'
+  | 'atmosphere'
 >;
 type AssetState = SceneDebugSnapshot['brain']['assetState'];
 

@@ -7,6 +7,8 @@ export interface QualityProfile {
   ghostWires: boolean;
   pointerParallax: boolean;
   continuousAnimation: boolean;
+  atmosphereParticles: number;
+  fogLayers: number;
   frameBudgetMs: number | null;
   bloom: {
     enabled: boolean;
@@ -26,6 +28,8 @@ const QUALITY_PROFILES: Record<QualityTier, QualityProfile> = {
     ghostWires: true,
     pointerParallax: true,
     continuousAnimation: true,
+    atmosphereParticles: 240,
+    fogLayers: 3,
     frameBudgetMs: 1000 / 60,
     bloom: {
       enabled: true,
@@ -43,6 +47,8 @@ const QUALITY_PROFILES: Record<QualityTier, QualityProfile> = {
     ghostWires: false,
     pointerParallax: false,
     continuousAnimation: true,
+    atmosphereParticles: 110,
+    fogLayers: 2,
     frameBudgetMs: 1000 / 30,
     bloom: {
       enabled: true,
@@ -60,6 +66,8 @@ const QUALITY_PROFILES: Record<QualityTier, QualityProfile> = {
     ghostWires: false,
     pointerParallax: false,
     continuousAnimation: false,
+    atmosphereParticles: 64,
+    fogLayers: 2,
     frameBudgetMs: null,
     bloom: {
       enabled: true,
@@ -77,6 +85,8 @@ const QUALITY_PROFILES: Record<QualityTier, QualityProfile> = {
     ghostWires: false,
     pointerParallax: false,
     continuousAnimation: false,
+    atmosphereParticles: 0,
+    fogLayers: 0,
     frameBudgetMs: null,
     bloom: {
       enabled: false,

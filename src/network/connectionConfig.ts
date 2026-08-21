@@ -1,4 +1,5 @@
 import type { Vector3Tuple } from '../scene/compositionSpec';
+import { BADGE_ACTOR_STAGGER_SECONDS } from '../scene/ChoreographyTimeline';
 import type { LogoId, QualityTier } from '../scene/types';
 import { qualityProfileFor } from '../scene/qualityProfiles';
 
@@ -25,25 +26,25 @@ export const CONNECTION_ROUTE_SPECS: readonly ConnectionRouteSpec[] = [
   {
     id: 'facebook',
     routeOffset: [-0.28, 0.24, -0.22],
-    activationDelay: 0.07,
+    activationDelay: BADGE_ACTOR_STAGGER_SECONDS,
     packetPhase: 0.12,
   },
   {
     id: 'shopify',
     routeOffset: [0.38, -0.02, 0.26],
-    activationDelay: 0.14,
+    activationDelay: BADGE_ACTOR_STAGGER_SECONDS * 2,
     packetPhase: 0.24,
   },
   {
     id: 'slack',
     routeOffset: [-0.34, -0.28, -0.26],
-    activationDelay: 0.21,
+    activationDelay: BADGE_ACTOR_STAGGER_SECONDS * 3,
     packetPhase: 0.36,
   },
   {
     id: 'whatsapp',
     routeOffset: [0.16, -0.38, 0.2],
-    activationDelay: 0.28,
+    activationDelay: BADGE_ACTOR_STAGGER_SECONDS * 4,
     packetPhase: 0.48,
   },
 ] as const;

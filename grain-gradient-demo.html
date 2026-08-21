@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Animated grain-gradient background</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --ink: #111321;
+        --blue: #4f9ee5;
+        --mist: #d9d7eb;
+        --coral: #f46c4e;
+        --violet: #75639e;
+        --glow: 0.88;
+        --grain: 0.24;
+        --tempo: 1;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        min-height: 100dvh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        background: #090a10;
+        color: white;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      /* The panel is only here to frame the effect. Move .aurora-bg into any section. */
+      .demo {
+        position: relative;
+        width: min(95vw, 1040px);
+        min-height: min(78svh, 650px);
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 30px;
+        isolation: isolate;
+        box-shadow: 0 28px 80px rgba(0, 0, 0, 0.42);
+      }
+
+      .aurora-bg,
+      .aurora-bg::before,
+      .aurora-bg::after {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .aurora-bg {
+        z-index: -2;
+        overflow: hidden;
+        background: #190713;
+      }
+
+      /* A low-resolution canvas is deliberately scaled up with browser smoothing. Each
+         pixel blends every moving colour source, so this is a true mesh gradient—not
+         a stack of independent circles whose contours can meet. */
+      .flow {
+        position: absolute;
+        z-index: 1;
+        inset: -1px;
+        width: calc(100% + 2px);
+        height: calc(100% + 2px);
+        filter: saturate(1.08) contrast(1.04);
+        pointer-events: none;
+      }
+
+      /* Soft colour sources: make them much bigger than the viewport so their edges stay invisible. */
+      .blob {
+        position: absolute;
+        width: 88vmax;
+        height: 68vmax;
+        border-radius: 48% 52% 51% 49% / 43% 47% 53% 57%;
+        opacity: var(--glow);
+        /* The blur should be wide enough to hide the geometry of each source.
+           A 3px blur softens pixels; 68px softens the *colour boundary*. */
+        filter: blur(68px) saturate(1.08);
+        mix-blend-mode: screen;
+        will-change: transform;
+        display: none;
+      }
+
+      .blob--blue {
+        top: -35vmax;
+        left: -43vmax;
+        background: radial-gradient(ellipse at 56% 62%, var(--blue) 0%, color-mix(in srgb, var(--blue) 82%, transparent) 20%, color-mix(in srgb, var(--blue) 43%, transparent) 46%, transparent 74%);
+        animation: blue-drift calc(22s / var(--tempo)) ease-in-out infinite alternate;
+      }
+
+      .blob--mist {
+        top: 9%;
+        left: 2%;
+        width: 75vmax;
+        height: 62vmax;
+        border-radius: 57% 43% 46% 54% / 50% 56% 44% 50%;
+        background: radial-gradient(ellipse at 48% 55%, var(--mist) 0%, color-mix(in srgb, var(--mist) 68%, transparent) 22%, color-mix(in srgb, var(--mist) 30%, transparent) 50%, transparent 77%);
+        opacity: calc(var(--glow) * 0.68);
+        animation: mist-drift calc(27s / var(--tempo)) ease-in-out infinite alternate;
+      }
+
+      .blob--coral {
+        top: -31vmax;
+        right: -34vmax;
+        width: 84vmax;
+        height: 77vmax;
+        border-radius: 42% 58% 46% 54% / 55% 45% 55% 45%;
+        background: radial-gradient(ellipse at 38% 65%, var(--coral) 0%, color-mix(in srgb, var(--coral) 84%, transparent) 22%, color-mix(in srgb, var(--coral) 38%, transparent) 51%, transparent 76%);
+        animation: coral-drift calc(25s / var(--tempo)) ease-in-out infinite alternate;
+      }
+
+      .blob--violet {
+        right: -49vmax;
+        bottom: -46vmax;
+        width: 93vmax;
+        height: 63vmax;
+        border-radius: 52% 48% 57% 43% / 49% 57% 43% 51%;
+        background: radial-gradient(ellipse at 39% 32%, var(--violet) 0%, color-mix(in srgb, var(--violet) 66%, transparent) 24%, color-mix(in srgb, var(--violet) 28%, transparent) 53%, transparent 78%);
+        opacity: calc(var(--glow) * 0.57);
+        animation: violet-drift calc(30s / var(--tempo)) ease-in-out infinite alternate;
+      }
+
+      /* A vignette restores the dark, cinematic edges after additive blending. */
+      .aurora-bg::before {
+        z-index: 2;
+        background: radial-gradient(ellipse at center, transparent 18%, rgba(8, 2, 16, 0.1) 54%, rgba(7, 1, 13, 0.58) 100%);
+        content: "";
+      }
+
+      /* The canvas grain is intentionally separate from the soft light layers.
+         Soft-light grain can disappear on a bright gradient; this neutral, high-contrast
+         overlay stays visible while remaining pleasantly subtle. */
+      .aurora-bg::after {
+        z-index: 3;
+        display: none;
+        content: "";
+      }
+
+      .grain {
+        position: absolute;
+        z-index: 4;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        opacity: var(--grain);
+        mix-blend-mode: overlay;
+        pointer-events: none;
+      }
+
+      .content {
+        display: flex;
+        min-height: inherit;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: clamp(1.5rem, 4vw, 3.25rem);
+      }
+
+      .eyebrow {
+        margin: 0 0 0.75rem;
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        max-width: 9ch;
+        margin: 0;
+        font-size: clamp(2.7rem, 7vw, 5.5rem);
+        line-height: 0.92;
+        letter-spacing: -0.075em;
+        text-wrap: balance;
+      }
+
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: end;
+        gap: 0.9rem;
+        width: fit-content;
+        max-width: 100%;
+        padding: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 18px;
+        background: rgba(12, 13, 22, 0.34);
+        backdrop-filter: blur(18px);
+      }
+
+      label { display: grid; gap: 0.4rem; color: rgba(255, 255, 255, 0.75); font-size: 0.75rem; }
+      input[type='range'] { accent-color: #fff; width: 8rem; }
+      button {
+        min-height: 2.2rem;
+        border: 1px solid rgba(255, 255, 255, 0.24);
+        border-radius: 9px;
+        background: rgba(255, 255, 255, 0.12);
+        color: white;
+        cursor: pointer;
+        font: inherit;
+        padding: 0.35rem 0.7rem;
+      }
+
+      button:hover { background: rgba(255, 255, 255, 0.2); }
+      .is-paused * { animation-play-state: paused !important; }
+
+      @keyframes blue-drift { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(20vmax, 23vmax, 0) scale(1.12); } }
+      @keyframes mist-drift { from { transform: translate3d(-8vmax, 6vmax, 0) scale(1); } to { transform: translate3d(16vmax, -8vmax, 0) scale(1.18); } }
+      @keyframes coral-drift { from { transform: translate3d(0, 3vmax, 0) scale(1); } to { transform: translate3d(-22vmax, 28vmax, 0) scale(1.13); } }
+      @keyframes violet-drift { from { transform: translate3d(-4vmax, 0, 0) scale(1); } to { transform: translate3d(-24vmax, -14vmax, 0) scale(1.16); } }
+      @media (prefers-reduced-motion: reduce) {
+        .blob { animation: none; }
+      }
+
+      @supports not (color: color-mix(in srgb, white, transparent)) {
+        .blob { opacity: 0.68; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="demo" id="demo">
+      <div class="aurora-bg" aria-hidden="true">
+        <i class="blob blob--blue"></i>
+        <i class="blob blob--mist"></i>
+        <i class="blob blob--coral"></i>
+        <i class="blob blob--violet"></i>
+        <canvas class="flow" id="flow" aria-hidden="true"></canvas>
+        <canvas class="grain" id="grain" aria-hidden="true"></canvas>
+      </div>
+
+      <div class="content">
+        <div>
+          <p class="eyebrow">Pure CSS + one SVG noise texture</p>
+          <h1>Colour, light, and a little grain.</h1>
+        </div>
+        <div class="controls" aria-label="Background controls">
+          <label>Glow <input id="glow" type="range" min="0" max="1.4" step="0.01" value="0.88" /></label>
+          <label>Grain <input id="grain-control" type="range" min="0" max="0.5" step="0.01" value="0.24" /></label>
+          <label>Motion <input id="tempo" type="range" min="0.2" max="2" step="0.05" value="1" /></label>
+          <button id="pause" type="button" aria-pressed="false">Pause motion</button>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      const demo = document.querySelector('#demo');
+      const root = document.documentElement;
+      const pause = document.querySelector('#pause');
+      const flow = document.querySelector('#flow');
+      const flowContext = flow.getContext('2d', { alpha: false });
+      const grain = document.querySelector('#grain');
+      const grainContext = grain.getContext('2d', { alpha: false });
+      const grainSize = 280;
+      const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+      let flowFrame;
+      let lastFlowUpdate = 0;
+      let flowTempo = 1;
+      let grainFrame;
+      let lastGrainUpdate = 0;
+
+      function resizeFlow() {
+        const bounds = demo.getBoundingClientRect();
+        const width = Math.round(Math.min(440, Math.max(250, bounds.width * 0.42)));
+        flow.width = width;
+        flow.height = Math.round(width * bounds.height / bounds.width);
+      }
+
+      /* Colorflow-like mesh gradient. The Gaussian falloff means every colour source
+         contributes to every pixel; there are no separate radial-gradient boundaries. */
+      function drawFlow(time = 0) {
+        if (demo.classList.contains('is-paused')) return;
+
+        if (time - lastFlowUpdate < 50 && !reduceMotion.matches) {
+          flowFrame = requestAnimationFrame(drawFlow);
+          return;
+        }
+
+        lastFlowUpdate = time;
+        const seconds = time * 0.0001 * flowTempo;
+        const image = flowContext.createImageData(flow.width, flow.height);
+        const fields = [
+          { color: [72, 105, 142], x: -0.14 + Math.sin(seconds * 0.7) * 0.06, y: 0.48, radius: 0.8, strength: 0.92 },
+          { color: [229, 100, 70], x: 0.43 + Math.cos(seconds * 0.55) * 0.07, y: 0.43 + Math.sin(seconds * 0.8) * 0.05, radius: 0.5, strength: 1.07 },
+          { color: [108, 20, 67], x: 0.98 + Math.sin(seconds * 0.46) * 0.09, y: 0.36, radius: 0.76, strength: 0.9 },
+          { color: [102, 77, 117], x: 0.48, y: 0.83 + Math.cos(seconds * 0.6) * 0.06, radius: 0.64, strength: 0.45 },
+          { color: [-34, -26, -25], x: 0.48 + Math.sin(seconds * 0.62) * 0.14, y: 1.06, radius: 0.48, strength: 1.16 },
+        ];
+
+        for (let y = 0; y < flow.height; y += 1) {
+          const ny = y / flow.height;
+          for (let x = 0; x < flow.width; x += 1) {
+            const nx = x / flow.width;
+            let red = 20 * 0.28;
+            let green = 4 * 0.28;
+            let blue = 20 * 0.28;
+            let totalWeight = 0.28;
+            let shadow = 0;
+
+            for (const field of fields) {
+              const dx = nx - field.x;
+              const dy = ny - field.y;
+              const influence = Math.exp(-(dx * dx + dy * dy) / (2 * field.radius * field.radius)) * field.strength;
+              if (field.color[0] < 0) {
+                shadow += influence;
+              } else {
+                red += field.color[0] * influence;
+                green += field.color[1] * influence;
+                blue += field.color[2] * influence;
+                totalWeight += influence;
+              }
+            }
+
+            const pixel = (y * flow.width + x) * 4;
+            image.data[pixel] = Math.max(0, Math.min(255, red / totalWeight * 1.28 - shadow * 28));
+            image.data[pixel + 1] = Math.max(0, Math.min(255, green / totalWeight * 1.1 - shadow * 23));
+            image.data[pixel + 2] = Math.max(0, Math.min(255, blue / totalWeight * 1.15 - shadow * 21));
+            image.data[pixel + 3] = 255;
+          }
+        }
+        flowContext.putImageData(image, 0, 0);
+
+        if (!reduceMotion.matches) {
+          flowFrame = requestAnimationFrame(drawFlow);
+        }
+      }
+
+      resizeFlow();
+      drawFlow();
+      addEventListener('resize', () => {
+        resizeFlow();
+        drawFlow();
+      });
+
+      // Draw a small monochrome noise field and let the browser scale it over the panel.
+      // Updating it around 13 times per second gives a tactile film-grain shimmer without
+      // paying the cost of redrawing a full-size canvas every animation frame.
+      function drawGrain(time = 0) {
+        if (demo.classList.contains('is-paused')) return;
+
+        if (time - lastGrainUpdate < 75 && !reduceMotion.matches) {
+          grainFrame = requestAnimationFrame(drawGrain);
+          return;
+        }
+
+        lastGrainUpdate = time;
+        const image = grainContext.createImageData(grainSize, grainSize);
+        for (let pixel = 0; pixel < image.data.length; pixel += 4) {
+          const value = 92 + Math.random() * 122;
+          image.data[pixel] = value;
+          image.data[pixel + 1] = value;
+          image.data[pixel + 2] = value;
+          image.data[pixel + 3] = 255;
+        }
+        grainContext.putImageData(image, 0, 0);
+
+        if (!reduceMotion.matches && !demo.classList.contains('is-paused')) {
+          grainFrame = requestAnimationFrame(drawGrain);
+        }
+      }
+
+      grain.width = grainSize;
+      grain.height = grainSize;
+      drawGrain();
+
+      document.querySelector('#glow').addEventListener('input', (event) => {
+        root.style.setProperty('--glow', event.target.value);
+      });
+
+      document.querySelector('#grain-control').addEventListener('input', (event) => {
+        root.style.setProperty('--grain', event.target.value);
+      });
+
+      document.querySelector('#tempo').addEventListener('input', (event) => {
+        root.style.setProperty('--tempo', event.target.value);
+        flowTempo = Number(event.target.value);
+      });
+
+      pause.addEventListener('click', () => {
+        const paused = demo.classList.toggle('is-paused');
+        pause.textContent = paused ? 'Resume motion' : 'Pause motion';
+        pause.setAttribute('aria-pressed', String(paused));
+        if (!paused) {
+          cancelAnimationFrame(flowFrame);
+          flowFrame = requestAnimationFrame(drawFlow);
+          cancelAnimationFrame(grainFrame);
+          grainFrame = requestAnimationFrame(drawGrain);
+        }
+      });
+
+      reduceMotion.addEventListener('change', () => {
+        cancelAnimationFrame(flowFrame);
+        drawFlow();
+        cancelAnimationFrame(grainFrame);
+        drawGrain();
+      });
+    </script>
+  </body>
+</html>

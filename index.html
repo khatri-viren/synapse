@@ -5,19 +5,98 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta
       name="description"
-      content="A procedural neural-network scene that visualizes platform signals moving toward a central brain."
+      content="A cinematic neural intelligence hero where platform signals converge into one living network."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"
+      rel="stylesheet"
     />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>Neural Network Hero</title>
   </head>
   <body>
     <main id="app">
-      <canvas
-        id="scene-canvas"
-        role="img"
-        aria-label="Interactive neural network scene initializing"
-      ></canvas>
-      <section id="renderer-fallback" hidden aria-live="polite" aria-labelledby="fallback-title">
+      <section id="hero-scroll" class="hero-scroll" aria-labelledby="hero-title">
+        <div id="hero-stage" class="hero-stage">
+          <div class="hero-atmosphere" aria-hidden="true"></div>
+          <canvas
+            id="scene-canvas"
+            role="img"
+            aria-label="Interactive neural network scene initializing"
+          ></canvas>
+
+          <div class="hero-ui">
+            <header class="agent-heading" data-title-reveal>
+              <h1 id="hero-title">
+                <span>One Agent.</span>
+                <span>Every Channel.</span>
+              </h1>
+            </header>
+
+            <aside class="brain-insights" aria-label="Network signal metrics">
+              <article class="brain-insight brain-insight--channels">
+                <svg class="brain-insight__icon" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <circle cx="24" cy="24" r="4"></circle>
+                  <circle cx="24" cy="24" r="12"></circle>
+                  <circle cx="24" cy="24" r="20"></circle>
+                </svg>
+                <div>
+                  <p>Channels unified</p>
+                  <strong>5 live sources</strong>
+                </div>
+              </article>
+
+              <article class="brain-insight brain-insight--context">
+                <svg class="brain-insight__icon" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                  <circle cx="24" cy="24" r="7"></circle>
+                  <path d="M24 4v8M24 36v8M4 24h8M36 24h8M9.9 9.9l5.7 5.7M32.4 32.4l5.7 5.7M38.1 9.9l-5.7 5.7M15.6 32.4l-5.7 5.7"></path>
+                </svg>
+                <div>
+                  <p>Signal context</p>
+                  <strong>1 shared view</strong>
+                </div>
+              </article>
+            </aside>
+
+            <header class="hero-copy">
+              <p class="hero-copy__subhead">
+                One neural layer turns every conversation, event, and customer signal into
+                understanding you can act on.
+              </p>
+              <div class="hero-copy__actions">
+                <a class="hero-cta hero-cta--primary" href="#story" data-spring-lift>
+                  Explore the network <span aria-hidden="true">↗</span>
+                </a>
+                <button class="hero-cta hero-cta--secondary" type="button" data-hero-replay data-spring-lift>
+                  <span class="play-icon" aria-hidden="true">▶</span> Watch the signal
+                </button>
+              </div>
+            </header>
+
+            <article class="fold-card fold-card--left" data-spring-lift>
+              <div class="fold-card__glow" aria-hidden="true"></div>
+              <p class="fold-card__index">01 / LISTEN</p>
+              <h2>Every channel, one pulse.</h2>
+              <p>Signals arrive with context intact, ready to become a shared source of truth.</p>
+              <span class="fold-card__arrow" aria-hidden="true">↗</span>
+            </article>
+
+            <article class="fold-card fold-card--right" data-spring-lift>
+              <div class="fold-card__glow" aria-hidden="true"></div>
+              <p class="fold-card__index">02 / UNDERSTAND</p>
+              <h2>Patterns surface in real time.</h2>
+              <p>Neural connections reveal intent, momentum, and the next best action.</p>
+              <span class="fold-card__arrow" aria-hidden="true">↗</span>
+            </article>
+          </div>
+
+          <div class="scroll-cue" aria-hidden="true">
+            <span>Scroll to unfold</span><i></i>
+          </div>
+
+          <section id="renderer-fallback" hidden aria-live="polite" aria-labelledby="fallback-title">
         <div class="fallback__grid" aria-hidden="true"></div>
         <div class="fallback__content">
           <p class="fallback__eyebrow">Neural network</p>
@@ -68,6 +147,30 @@
             This browser could not start WebGPU or WebGL2. The static poster preserves the core
             idea: five platform signals flowing into a central wireframe brain.
           </p>
+        </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="story" class="story-section" aria-labelledby="story-title">
+        <div class="story-section__intro" data-scroll-reveal>
+          <p class="section-kicker">A connected intelligence layer</p>
+          <h2 id="story-title">From scattered activity to a system that senses.</h2>
+          <p>
+            Synapse brings customer signals together without flattening what made them useful:
+            their source, sequence, and human context.
+          </p>
+        </div>
+        <div id="systems" class="story-grid">
+          <article data-scroll-reveal>
+            <span>01</span><h3>Connect</h3><p>Bring every active channel into one coherent graph.</p>
+          </article>
+          <article data-scroll-reveal>
+            <span>02</span><h3>Interpret</h3><p>See the intent and relationships hiding between events.</p>
+          </article>
+          <article data-scroll-reveal>
+            <span>03</span><h3>Act</h3><p>Move from insight to the next best action while the signal is alive.</p>
+          </article>
         </div>
       </section>
     </main>

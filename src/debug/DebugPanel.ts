@@ -5,7 +5,7 @@ import {
   type RuntimeDiagnostics,
 } from '../scene/types';
 import { BADGE_ORBIT_SPECS } from '../badges/badgeConfig';
-import { COMPOSITION_SAFE_FRAME } from '../scene/compositionSpec';
+import { heroLayoutFor } from '../scene/compositionSpec';
 
 export interface DebugPanelActions {
   onRendererPreference: (preference: RendererPreference) => void;
@@ -23,6 +23,7 @@ export interface DebugPanelActions {
   onBadgeOrbitGuidesVisibility: (visible: boolean) => void;
   onConnectionsVisibility: (visible: boolean) => void;
   onPacketsVisibility: (visible: boolean) => void;
+  onAtmosphereVisibility: (visible: boolean) => void;
   onBloomVisibility: (visible: boolean) => void;
 }
 
@@ -38,6 +39,9 @@ const phaseOptions: ReadonlyArray<{ value: IntroPhase; label: string }> = [
   { value: 'link-activation', label: 'Link activation' },
   { value: 'ambient', label: 'Ambient' },
 ];
+
+// requestAnimationFrame cadence is quantized and the displayed percentile is rounded to 0.1 ms.
+const FRAME_BUDGET_DISPLAY_TOLERANCE_MS = 0.2;
 
 function getRequiredElement<T extends HTMLElement>(root: ParentNode, selector: string): T {
   const element = root.querySelector<T>(selector);
@@ -76,11 +80,11 @@ export class DebugPanel {
     const { actions, rendererPreference, qualityOverride } = options;
     this.element = document.createElement('aside');
     this.element.className = 'debug-panel';
-    this.element.setAttribute('aria-label', 'Phase 7 rendering and performance diagnostics');
+    this.element.setAttribute('aria-label', 'Hero rendering and performance diagnostics');
     this.element.innerHTML = `
       <div class="debug-panel__header">
-        <p>Phase 7</p>
-        <span>HDR finish + fixed quality tiers</span>
+        <p>Phase 14</p>
+        <span>Hero composition + HDR diagnostics</span>
         <button type="button" data-debug-collapse aria-expanded="true" aria-label="Collapse diagnostics">−</button>
       </div>
       <label>
@@ -122,6 +126,7 @@ export class DebugPanel {
         <label><input type="checkbox" data-debug-orbit-guides /> Orbit guides</label>
         <label><input type="checkbox" data-debug-connections checked /> Connections</label>
         <label><input type="checkbox" data-debug-packets checked /> Inbound packets</label>
+        <label><input type="checkbox" data-debug-atmosphere checked /> Atmosphere</label>
         <label><input type="checkbox" data-debug-bloom checked /> HDR bloom</label>
         <label><input type="checkbox" data-debug-safe-frame /> Safe frame</label>
       </fieldset>
@@ -154,8 +159,9 @@ export class DebugPanel {
 
     this.safeFrameElement = document.createElement('div');
     this.safeFrameElement.className = 'debug-safe-frame';
-    this.safeFrameElement.style.setProperty('--safe-frame-width', `${COMPOSITION_SAFE_FRAME.x * 100}%`);
-    this.safeFrameElement.style.setProperty('--safe-frame-height', `${COMPOSITION_SAFE_FRAME.y * 100}%`);
+    const initialStage = heroLayoutFor('wide').stage;
+    this.safeFrameElement.style.setProperty('--safe-frame-width', `${initialStage.halfWidth * 200}%`);
+    this.safeFrameElement.style.setProperty('--safe-frame-height', `${initialStage.halfHeight * 200}%`);
     this.safeFrameElement.hidden = true;
     this.safeFrameElement.setAttribute('aria-hidden', 'true');
     host.append(this.safeFrameElement);
@@ -225,6 +231,10 @@ export class DebugPanel {
       'change',
       (event) => actions.onPacketsVisibility((event.currentTarget as HTMLInputElement).checked),
     );
+    getRequiredElement<HTMLInputElement>(this.element, '[data-debug-atmosphere]').addEventListener(
+      'change',
+      (event) => actions.onAtmosphereVisibility((event.currentTarget as HTMLInputElement).checked),
+    );
     getRequiredElement<HTMLInputElement>(this.element, '[data-debug-bloom]').addEventListener(
       'change',
       (event) => actions.onBloomVisibility((event.currentTarget as HTMLInputElement).checked),
@@ -265,6 +275,11 @@ export class DebugPanel {
       this.ghostWiresControl.disabled = false;
     }
     this.layoutValue.textContent = diagnostics.compositionLayout;
+    const stage = heroLayoutFor(diagnostics.compositionLayout).stage;
+    this.safeFrameElement.style.setProperty('--safe-frame-width', `${stage.halfWidth * 200}%`);
+    this.safeFrameElement.style.setProperty('--safe-frame-height', `${stage.halfHeight * 200}%`);
+    this.safeFrameElement.style.setProperty('--safe-frame-center-x', `${50 + stage.centerX * 50}%`);
+    this.safeFrameElement.style.setProperty('--safe-frame-center-y', `${50 - stage.centerY * 50}%`);
     this.cameraValue.textContent = [
       diagnostics.cameraPosition.x,
       diagnostics.cameraPosition.y,
@@ -287,7 +302,7 @@ export class DebugPanel {
           : 'Collecting…'
         : diagnostics.frameBudgetMs === null
           ? `${diagnostics.frameP95Ms.toFixed(1)} ms`
-          : `${diagnostics.frameP95Ms.toFixed(1)} / ${diagnostics.frameBudgetMs.toFixed(1)} ms ${diagnostics.frameP95Ms <= diagnostics.frameBudgetMs ? '✓' : '!'}`;
+          : `${diagnostics.frameP95Ms.toFixed(1)} / ${diagnostics.frameBudgetMs.toFixed(1)} ms ${diagnostics.frameP95Ms <= diagnostics.frameBudgetMs + FRAME_BUDGET_DISPLAY_TOLERANCE_MS ? '✓' : '!'}`;
     this.messageValue.textContent = diagnostics.message;
     this.isPaused = diagnostics.isPaused;
     this.pauseButton.textContent = this.isPaused ? 'Resume diagnostic' : 'Pause diagnostic';

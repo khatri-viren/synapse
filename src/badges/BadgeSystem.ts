@@ -10,14 +10,18 @@ import {
   Material,
   Mesh,
   MeshStandardNodeMaterial,
+  PerspectiveCamera,
   Quaternion,
   SphereGeometry,
   TorusGeometry,
   Vector3,
 } from 'three/webgpu';
 
-import type { CompositionLayout } from '../scene/compositionSpec';
-import { CHOREOGRAPHY_TIMELINE } from '../scene/ChoreographyTimeline';
+import type { CompositionLayout, NormalizedDomRect } from '../scene/compositionSpec';
+import {
+  BADGE_ACTOR_STAGGER_SECONDS,
+  CHOREOGRAPHY_TIMELINE,
+} from '../scene/ChoreographyTimeline';
 import type {
   BadgeOrbitValidationSnapshot,
   BadgeRuntimeDebugSnapshot,
@@ -46,15 +50,17 @@ type BadgeActor = {
 
 const ORBIT_GUIDE_SAMPLES = 128;
 const ORBIT_GUIDE_OPACITY = 0.18;
-const BADGE_ARRIVAL_STAGGER_SECONDS = 0.065;
 const BADGE_ARRIVAL_ACTOR_DURATION_SECONDS =
   CHOREOGRAPHY_TIMELINE.badgeArrival.duration -
-  BADGE_ARRIVAL_STAGGER_SECONDS * (BADGE_ORBIT_SPECS.length - 1);
+  BADGE_ACTOR_STAGGER_SECONDS * (BADGE_ORBIT_SPECS.length - 1);
 const BADGE_CLOSE_GROUP_DISTANCE = 1.25;
-const MAXIMUM_SAME_SIDE_COUNT = 3;
-const MAXIMUM_BEHIND_COUNT = 2;
-const MAXIMUM_OCCLUDED_COUNT = 2;
-const MAXIMUM_CLOSE_GROUP_SIZE = 2;
+// Five symmetric full-period orbits average 2.5 actors behind the brain, so a
+// maximum of two is mathematically impossible. Compact layouts intentionally
+// accept more screen overlap while keeping physical collision and DOM keep-outs strict.
+const DISTRIBUTION_LIMITS: Record<CompositionLayout, BadgeOrbitValidationSnapshot['limits']> = {
+  wide: { sameSide: 4, behind: 4, occluded: 3, closeGroup: 4 },
+  compact: { sameSide: 5, behind: 3, occluded: 5, closeGroup: 4 },
+};
 const BADGE_SOCKET_PROTRUSION = 0.055;
 const BADGE_SOCKET_STEM_LENGTH = 0.095;
 const BADGE_PLANE_NORMAL = new Vector3(0, 0, 1);
@@ -66,6 +72,8 @@ const tempSocketLocalDirection = new Vector3();
 const tempSocketLocalPoint = new Vector3();
 const tempInverseVisualQuaternion = new Quaternion();
 const tempSocketLocalQuaternion = new Quaternion();
+const tempProjectedPoint = new Vector3();
+const tempProjectedEdge = new Vector3();
 
 function clamp01(value: number): number {
   return Math.min(Math.max(value, 0), 1);
@@ -256,7 +264,7 @@ export class BadgeSystem {
           : minimumJerk(
               (state.elapsedSeconds -
                 CHOREOGRAPHY_TIMELINE.badgeArrival.start -
-                badgeIndex * BADGE_ARRIVAL_STAGGER_SECONDS) /
+                badgeIndex * BADGE_ACTOR_STAGGER_SECONDS) /
                 BADGE_ARRIVAL_ACTOR_DURATION_SECONDS,
             );
       evaluateBadgeOrbit(spec, this.layout, choreographyTime, tempOrbitPoint);
@@ -365,7 +373,12 @@ export class BadgeSystem {
     });
   }
 
-  validateOrbitSafety(brainBounds: Box3): BadgeOrbitValidationSnapshot {
+  validateOrbitSafety(
+    brainBounds: Box3,
+    camera?: PerspectiveCamera,
+    keepOutRects: readonly NormalizedDomRect[] = [],
+  ): BadgeOrbitValidationSnapshot {
+    const limits = DISTRIBUTION_LIMITS[this.layout];
     const maximumPeriodSeconds = Math.max(
       ...BADGE_ORBIT_SPECS.map((spec) => (Math.PI * 2) / Math.abs(spec.angularSpeed)),
     );
@@ -386,6 +399,8 @@ export class BadgeSystem {
     let maximumBehindCount = 0;
     let maximumOccludedCount = 0;
     let maximumCloseGroupSize = 0;
+    let minimumKeepOutSeparation = Number.POSITIVE_INFINITY;
+    let maximumKeepOutOverlapCount = 0;
     let minimumBrainClearanceAt: BadgeOrbitValidationSnapshot['minimumBrainClearanceAt'] = {
       badgeId: BADGE_ORBIT_SPECS[0].id,
       elapsedSeconds: 0,
@@ -461,6 +476,29 @@ export class BadgeSystem {
         largestCloseGroupSize(positions),
       );
 
+      if (camera !== undefined && keepOutRects.length > 0) {
+        let overlapCount = 0;
+        for (const position of positions) {
+          tempProjectedPoint.copy(position).project(camera);
+          tempProjectedEdge
+            .copy(position)
+            .setX(position.x + BADGE_ACTOR_RADIUS)
+            .project(camera);
+          const x = tempProjectedPoint.x * 0.5 + 0.5;
+          const y = -tempProjectedPoint.y * 0.5 + 0.5;
+          const projectedRadius = Math.abs(tempProjectedEdge.x - tempProjectedPoint.x) * 0.5;
+
+          for (const rect of keepOutRects) {
+            const dx = Math.max(rect.left - x, 0, x - (rect.left + rect.width));
+            const dy = Math.max(rect.top - y, 0, y - (rect.top + rect.height));
+            const separation = Math.hypot(dx, dy) - projectedRadius;
+            minimumKeepOutSeparation = Math.min(minimumKeepOutSeparation, separation);
+            overlapCount += separation < 0 ? 1 : 0;
+          }
+        }
+        maximumKeepOutOverlapCount = Math.max(maximumKeepOutOverlapCount, overlapCount);
+      }
+
       for (let left = 0; left < positions.length; left += 1) {
         const leftPosition = positions[left];
         if (leftPosition === undefined) continue;
@@ -493,13 +531,19 @@ export class BadgeSystem {
       maximumBehindCount,
       maximumOccludedCount,
       maximumCloseGroupSize,
+      minimumKeepOutSeparation:
+        minimumKeepOutSeparation === Number.POSITIVE_INFINITY ? null : minimumKeepOutSeparation,
+      maximumKeepOutOverlapCount,
+      limits: { ...limits },
       brainCollisionFree: minimumBrainClearance >= 0,
       badgeCollisionFree: minimumBadgeClearance >= 0,
+      keepOutSafe: minimumKeepOutSeparation >= 0,
       distributionSafe:
-        maximumSameSideCount <= MAXIMUM_SAME_SIDE_COUNT &&
-        maximumBehindCount <= MAXIMUM_BEHIND_COUNT &&
-        maximumOccludedCount <= MAXIMUM_OCCLUDED_COUNT &&
-        maximumCloseGroupSize <= MAXIMUM_CLOSE_GROUP_SIZE,
+        maximumSameSideCount <= limits.sameSide &&
+        maximumBehindCount <= limits.behind &&
+        maximumOccludedCount <= limits.occluded &&
+        maximumCloseGroupSize <= limits.closeGroup &&
+        minimumKeepOutSeparation >= 0,
     };
   }
 

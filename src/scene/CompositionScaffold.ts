@@ -4,7 +4,9 @@ import { BadgeSystem } from '../badges/BadgeSystem';
 import { BrainSystem } from '../brain/BrainSystem';
 import { ConnectionSystem } from '../network/ConnectionSystem';
 import { PacketSystem } from '../network/PacketSystem';
-import type { CompositionLayout } from './compositionSpec';
+import { AtmosphereParticles } from '../atmosphere/AtmosphereParticles';
+import { AuthoredHeroFog } from '../atmosphere/AuthoredHeroFog';
+import { heroLayoutFor, type CompositionLayout } from './compositionSpec';
 import type {
   BadgeOrbitValidationSnapshot,
   BadgeRuntimeDebugSnapshot,
@@ -21,12 +23,15 @@ export class CompositionScaffold {
   readonly badgeGroup = new Group();
   readonly connectionGroup = new Group();
   readonly packetGroup = new Group();
+  readonly atmosphereGroup = new Group();
   readonly ready: Promise<void>;
 
   private readonly brainSystem: BrainSystem;
   private readonly badgeSystem: BadgeSystem;
   private readonly connectionSystem: ConnectionSystem;
   private readonly packetSystem: PacketSystem;
+  private readonly atmosphereParticles: AtmosphereParticles;
+  private readonly authoredHeroFog: AuthoredHeroFog;
   private readonly orbitValidationByLayout = new Map<CompositionLayout, BadgeOrbitValidationSnapshot>();
   private layout: CompositionLayout = 'wide';
 
@@ -35,19 +40,32 @@ export class CompositionScaffold {
     this.badgeSystem = new BadgeSystem();
     this.connectionSystem = new ConnectionSystem();
     this.packetSystem = new PacketSystem();
-    this.ready = Promise.all([this.brainSystem.ready, this.badgeSystem.ready]).then(() => undefined);
+    this.atmosphereParticles = new AtmosphereParticles(initialQuality);
+    this.authoredHeroFog = new AuthoredHeroFog(initialQuality);
+    this.ready = Promise.all([
+      this.brainSystem.ready,
+      this.badgeSystem.ready,
+    ]).then(() => undefined);
     this.root.name = 'sceneRoot';
     this.brainGroup.name = 'brainGroup';
     this.badgeGroup.name = 'badgeGroup';
     this.connectionGroup.name = 'connectionGroup';
     this.packetGroup.name = 'packetGroup';
+    this.atmosphereGroup.name = 'atmosphereGroup';
 
     this.createLighting();
     this.brainGroup.add(this.brainSystem.root);
     this.badgeGroup.add(this.badgeSystem.root);
     this.connectionGroup.add(this.connectionSystem.root);
     this.packetGroup.add(this.packetSystem.root);
-    this.root.add(this.connectionGroup, this.brainGroup, this.badgeGroup, this.packetGroup);
+    this.atmosphereGroup.add(this.authoredHeroFog.root, this.atmosphereParticles.root);
+    this.root.add(
+      this.atmosphereGroup,
+      this.connectionGroup,
+      this.brainGroup,
+      this.badgeGroup,
+      this.packetGroup,
+    );
     this.setLayout('wide');
   }
 
@@ -65,6 +83,10 @@ export class CompositionScaffold {
     return [...this.brainSystem.getSupportPoints(), ...this.badgeSystem.getSupportPoints()];
   }
 
+  getBrainSupportPoints(): Vector3[] {
+    return this.brainSystem.getSupportPoints();
+  }
+
   getBadgeActorWorldPosition(id: LogoId, target = new Vector3()): Vector3 {
     this.root.updateMatrixWorld(true);
     return this.badgeSystem.getActorWorldPosition(id, target);
@@ -80,7 +102,17 @@ export class CompositionScaffold {
     return this.badgeSystem.getDebugSnapshot();
   }
 
-  getBadgeOrbitValidation(): BadgeOrbitValidationSnapshot {
+  getBadgeOrbitValidation(
+    camera?: import('three/webgpu').PerspectiveCamera,
+  ): BadgeOrbitValidationSnapshot {
+    if (camera !== undefined) {
+      const brainBounds = new Box3().setFromPoints(this.brainSystem.getSupportPoints());
+      return this.badgeSystem.validateOrbitSafety(
+        brainBounds,
+        camera,
+        heroLayoutFor(this.layout).keepOutRects,
+      );
+    }
     const cached = this.orbitValidationByLayout.get(this.layout);
 
     if (cached !== undefined) {
@@ -101,6 +133,9 @@ export class CompositionScaffold {
       this.badgeSystem.root.name,
       this.connectionSystem.root.name,
       this.packetSystem.root.name,
+      this.atmosphereParticles.root.name,
+      this.authoredHeroFog.root.name,
+      this.atmosphereGroup.name,
       this.connectionGroup.name,
       this.packetGroup.name,
     ];
@@ -108,6 +143,8 @@ export class CompositionScaffold {
 
   setQualityTier(quality: QualityTier): void {
     this.brainSystem.setQualityTier(quality);
+    this.atmosphereParticles.setQualityTier(quality);
+    this.authoredHeroFog.setQualityTier(quality);
   }
 
   setBrainFillVisible(visible: boolean): void {
@@ -150,11 +187,21 @@ export class CompositionScaffold {
     this.packetSystem.setVisible(visible);
   }
 
-  update(state: Pick<SceneState, 'elapsedSeconds' | 'introPhase' | 'quality'>): void {
+  setAtmosphereVisible(visible: boolean): void {
+    this.atmosphereParticles.setVisible(visible);
+    this.authoredHeroFog.setVisible(visible);
+    this.atmosphereGroup.visible = visible;
+  }
+
+  update(
+    state: Pick<SceneState, 'elapsedSeconds' | 'introPhase' | 'quality' | 'scrollProgress'>,
+  ): void {
     this.brainSystem.update(state);
     this.badgeSystem.update(state);
     this.connectionSystem.update(state, this.badgeSystem, this.brainSystem);
     this.packetSystem.update(state, this.connectionSystem);
+    this.atmosphereParticles.update(state);
+    this.authoredHeroFog.update(state);
   }
 
   getVisibility(): SceneDebugSnapshot['visibility'] {
@@ -163,6 +210,7 @@ export class CompositionScaffold {
       ...this.badgeSystem.getVisibility(),
       connections: this.connectionSystem.isVisible(),
       packets: this.packetSystem.isVisible(),
+      atmosphere: this.atmosphereParticles.isVisible(),
     };
   }
 
@@ -177,11 +225,20 @@ export class CompositionScaffold {
     };
   }
 
+  getAtmosphereDebugSnapshot(): SceneDebugSnapshot['atmosphere'] {
+    return {
+      ...this.atmosphereParticles.getDebugSnapshot(),
+      fog: this.authoredHeroFog.getDebugSnapshot(),
+    };
+  }
+
   dispose(): void {
     this.brainSystem.dispose();
     this.badgeSystem.dispose();
     this.connectionSystem.dispose();
     this.packetSystem.dispose();
+    this.atmosphereParticles.dispose();
+    this.authoredHeroFog.dispose();
   }
 
   private createLighting(): void {

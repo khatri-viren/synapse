@@ -8,9 +8,14 @@ import {
 import { CameraRig } from './CameraRig';
 import { INTRO_CHECKPOINT_SECONDS, introPhaseFor } from './ChoreographyTimeline';
 import { CompositionScaffold } from './CompositionScaffold';
-import { COMPOSITION_SAFE_FRAME, type CompositionLayout } from './compositionSpec';
+import {
+  heroLayoutFor,
+  publishHeroLayoutCss,
+  type CompositionLayout,
+} from './compositionSpec';
 import { HdrRenderPipeline } from './HdrRenderPipeline';
 import { qualityProfileFor } from './qualityProfiles';
+import { ScreenAnchorBridge } from '../ui/ScreenAnchorBridge';
 import type {
   IntroPhase,
   QualityTier,
@@ -20,6 +25,7 @@ import type {
   RuntimePhase,
   SceneDebugSnapshot,
   SceneState,
+  BadgeOrbitValidationSnapshot,
 } from './types';
 
 const CANVAS_BACKGROUND = new Color('#05060c');
@@ -42,6 +48,9 @@ export interface SceneControllerOptions {
   rendererPreference: RendererPreference;
   initialQuality: QualityTier;
   layoutOverride?: CompositionLayout | null;
+  heroElement?: HTMLElement;
+  screenBridgeHost?: HTMLElement;
+  onFrameState?: (state: SceneState) => void;
   onDiagnostics?: (diagnostics: RuntimeDiagnostics) => void;
 }
 
@@ -71,6 +80,9 @@ export class SceneController {
   private readonly rendererPreference: RendererPreference;
   private readonly layoutOverride: CompositionLayout | null;
   private readonly onDiagnostics?: (diagnostics: RuntimeDiagnostics) => void;
+  private readonly onFrameState?: (state: SceneState) => void;
+  private readonly heroElement?: HTMLElement;
+  private readonly screenBridge: ScreenAnchorBridge | null;
   private readonly scene = new Scene();
   private readonly camera = new PerspectiveCamera(CAMERA_VERTICAL_FOV_DEGREES, 1, 0.1, 100);
   private readonly cameraRig = new CameraRig(this.camera);
@@ -78,6 +90,7 @@ export class SceneController {
   private readonly reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
   private readonly finePointerQuery = window.matchMedia('(pointer: fine)');
   private readonly frameSamples: number[] = [];
+  private readonly heroObserver: IntersectionObserver | null;
 
   private renderer: WebGPURenderer | null = null;
   private hdrPipeline: HdrRenderPipeline | null = null;
@@ -90,14 +103,22 @@ export class SceneController {
   private lastDiagnosticsTimestamp = 0;
   private runtimeMessage = 'Initializing renderer…';
   private readonly startingQuality: QualityTier;
+  private isHeroVisible = true;
+  private badgeOrbitValidation: BadgeOrbitValidationSnapshot | null = null;
 
   constructor(options: SceneControllerOptions) {
     this.canvas = options.canvas;
     this.rendererPreference = options.rendererPreference;
     this.layoutOverride = options.layoutOverride ?? null;
     this.onDiagnostics = options.onDiagnostics;
+    this.onFrameState = options.onFrameState;
+    this.heroElement = options.heroElement;
     this.startingQuality = options.initialQuality;
     this.composition = new CompositionScaffold(options.initialQuality);
+    this.screenBridge =
+      options.screenBridgeHost === undefined
+        ? null
+        : new ScreenAnchorBridge(options.screenBridgeHost, options.canvas);
     const startsReduced = options.initialQuality === 'reduced-motion';
     this.state = {
       elapsedSeconds: startsReduced ? INTRO_CHECKPOINT_SECONDS.ambient : 0,
@@ -105,18 +126,25 @@ export class SceneController {
       introPhase: startsReduced ? 'ambient' : 'brain-scan',
       pointerNdc: { x: 0, y: 0 },
       pointerStrength: 0,
+      scrollProgress: 0,
     };
 
     this.scene.background = CANVAS_BACKGROUND;
     this.scene.add(this.composition.root);
 
     window.addEventListener('resize', this.handleResize, { passive: true });
+    window.addEventListener('scroll', this.handleScroll, { passive: true });
     window.addEventListener('blur', this.handlePointerExit);
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
     this.reducedMotionQuery.addEventListener('change', this.handleReducedMotionChange);
     this.finePointerQuery.addEventListener('change', this.handleFinePointerChange);
-    this.canvas.addEventListener('pointermove', this.handlePointerMove, { passive: true });
-    this.canvas.addEventListener('pointerleave', this.handlePointerExit);
+    window.addEventListener('pointermove', this.handlePointerMove, { passive: true });
+    this.heroObserver =
+      this.heroElement === undefined
+        ? null
+        : new IntersectionObserver(this.handleHeroIntersection, { threshold: 0.01 });
+    if (this.heroElement !== undefined) this.heroObserver?.observe(this.heroElement);
+    this.handleScroll();
   }
 
   async start(): Promise<void> {
@@ -236,7 +264,8 @@ export class SceneController {
     }
 
     this.manuallyPaused = paused;
-    this.runtimePhase = paused ? 'suspended' : 'ready';
+    this.runtimePhase =
+      paused || document.hidden || !this.isHeroVisible ? 'suspended' : 'ready';
     this.lastFrameTimestamp = null;
     this.renderOnce();
     void this.syncAnimationLoop();
@@ -294,6 +323,11 @@ export class SceneController {
     this.renderOnce();
   }
 
+  setAtmosphereVisible(visible: boolean): void {
+    this.composition.setAtmosphereVisible(visible);
+    this.renderOnce();
+  }
+
   setBloomEnabled(enabled: boolean): void {
     this.hdrPipeline?.setBloomEnabled(enabled);
     this.renderOnce();
@@ -308,7 +342,10 @@ export class SceneController {
       groups: this.composition.getOwnedGroupNames(),
       compositionLayout: this.composition.getLayout(),
       visibility: this.composition.getVisibility(),
-      safeFrame: { ...COMPOSITION_SAFE_FRAME },
+      safeFrame: {
+        x: heroLayoutFor(this.composition.getLayout()).stage.halfWidth,
+        y: heroLayoutFor(this.composition.getLayout()).stage.halfHeight,
+      },
       camera: {
         position: {
           x: cameraSnapshot.position.x,
@@ -332,9 +369,10 @@ export class SceneController {
       },
       supportFit: this.cameraRig.validateSupportFit(),
       brain: this.composition.getBrainDebugSnapshot(),
-      badgeOrbitValidation: this.composition.getBadgeOrbitValidation(),
+      badgeOrbitValidation: this.getBadgeOrbitValidationSnapshot(),
       badges: this.getBadgeScreenSnapshots(),
       network: this.composition.getNetworkDebugSnapshot(),
+      atmosphere: this.composition.getAtmosphereDebugSnapshot(),
       rendering: this.getRenderPipelineSnapshot(),
     };
   }
@@ -347,12 +385,14 @@ export class SceneController {
     this.disposed = true;
     this.runtimePhase = 'disposed';
     window.removeEventListener('resize', this.handleResize);
+    window.removeEventListener('scroll', this.handleScroll);
     window.removeEventListener('blur', this.handlePointerExit);
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     this.reducedMotionQuery.removeEventListener('change', this.handleReducedMotionChange);
     this.finePointerQuery.removeEventListener('change', this.handleFinePointerChange);
-    this.canvas.removeEventListener('pointermove', this.handlePointerMove);
-    this.canvas.removeEventListener('pointerleave', this.handlePointerExit);
+    window.removeEventListener('pointermove', this.handlePointerMove);
+    this.heroObserver?.disconnect();
+    this.screenBridge?.dispose();
 
     if (this.renderer !== null && this.started) {
       void this.renderer.setAnimationLoop(null);
@@ -375,7 +415,8 @@ export class SceneController {
   private readonly handleResize = (): void => {
     this.clearPointerIntent();
     this.applySize();
-    this.renderOnce();
+    if (this.isHeroVisible) this.renderOnce();
+    else this.onFrameState?.(this.state);
   };
 
   private readonly handlePointerMove = (event: PointerEvent): void => {
@@ -401,6 +442,31 @@ export class SceneController {
     this.state.pointerStrength = 1;
   };
 
+  private readonly handleScroll = (): void => {
+    if (this.heroElement === undefined) return;
+    const bounds = this.heroElement.getBoundingClientRect();
+    const scrollDistance = Math.max(this.heroElement.offsetHeight - window.innerHeight, 1);
+    const progress = Math.min(Math.max(-bounds.top / scrollDistance, 0), 1);
+    if (Math.abs(progress - this.state.scrollProgress) < 0.0005) return;
+    this.state.scrollProgress = progress;
+    if (this.isHeroVisible) this.renderOnce();
+    else this.onFrameState?.(this.state);
+  };
+
+  private readonly handleHeroIntersection = (entries: IntersectionObserverEntry[]): void => {
+    const entry = entries[0];
+    if (entry === undefined) return;
+    this.isHeroVisible = entry.isIntersecting;
+    if (this.runtimePhase !== 'fallback' && this.runtimePhase !== 'disposed') {
+      this.runtimePhase = this.isHeroVisible && !document.hidden && !this.manuallyPaused
+        ? 'ready'
+        : 'suspended';
+    }
+    this.lastFrameTimestamp = null;
+    void this.syncAnimationLoop();
+    this.publishDiagnostics(true);
+  };
+
   private readonly handlePointerExit = (): void => {
     this.clearPointerIntent();
   };
@@ -410,7 +476,13 @@ export class SceneController {
       return;
     }
 
-    this.runtimePhase = document.hidden ? 'suspended' : this.manuallyPaused ? 'suspended' : 'ready';
+    if (this.runtimePhase === 'fallback') {
+      this.publishDiagnostics(true);
+      return;
+    }
+
+    this.runtimePhase =
+      document.hidden || this.manuallyPaused || !this.isHeroVisible ? 'suspended' : 'ready';
     this.lastFrameTimestamp = null;
     void this.syncAnimationLoop();
     this.publishDiagnostics(true);
@@ -458,6 +530,7 @@ export class SceneController {
       !this.disposed &&
       !this.manuallyPaused &&
       !document.hidden &&
+      this.isHeroVisible &&
       this.state.quality !== 'reduced-motion' &&
       qualityProfileFor(this.state.quality).continuousAnimation &&
       this.runtimePhase !== 'fallback'
@@ -488,7 +561,10 @@ export class SceneController {
     const layout =
       this.layoutOverride ?? (safeWidth <= 767 || safeWidth / safeHeight < 0.85 ? 'compact' : 'wide');
     this.composition.setLayout(layout);
-    this.cameraRig.fit(safeWidth, safeHeight, this.composition.getSupportPoints());
+    const layoutSpec = heroLayoutFor(layout);
+    this.cameraRig.fit(safeWidth, safeHeight, this.composition.getSupportPoints(), layoutSpec.stage);
+    this.badgeOrbitValidation = this.composition.getBadgeOrbitValidation(this.camera);
+    if (this.screenBridge !== null) publishHeroLayoutCss(this.screenBridgeHost(), layout);
   }
 
   private isPointerParallaxEnabled(): boolean {
@@ -549,7 +625,10 @@ export class SceneController {
       this.state.pointerNdc,
       this.state.pointerStrength,
       this.isPointerParallaxEnabled(),
+      this.state.scrollProgress,
     );
+    this.screenBridge?.update(this.camera, this.composition, this.state);
+    this.onFrameState?.(this.state);
     this.hdrPipeline.render();
   }
 
@@ -583,8 +662,10 @@ export class SceneController {
           actorNdc.z >= -1 &&
           actorNdc.z <= 1,
         insideSafeFrame:
-          Math.abs(actorNdc.x) <= COMPOSITION_SAFE_FRAME.x &&
-          Math.abs(actorNdc.y) <= COMPOSITION_SAFE_FRAME.y,
+          Math.abs(actorNdc.x - heroLayoutFor(this.composition.getLayout()).stage.centerX) <=
+            heroLayoutFor(this.composition.getLayout()).stage.halfWidth &&
+          Math.abs(actorNdc.y - heroLayoutFor(this.composition.getLayout()).stage.centerY) <=
+            heroLayoutFor(this.composition.getLayout()).stage.halfHeight,
         distanceFromBrain: actorPoint.length(),
         nearestBadgeDistance,
       };
@@ -621,7 +702,7 @@ export class SceneController {
     this.lastDiagnosticsTimestamp = timestamp;
     const cameraSnapshot = this.cameraRig.getSnapshot();
     const brainSnapshot = this.composition.getBrainDebugSnapshot();
-    const badgeValidation = this.composition.getBadgeOrbitValidation();
+    const badgeValidation = this.getBadgeOrbitValidationSnapshot();
     const networkSnapshot = this.composition.getNetworkDebugSnapshot();
     const renderPipelineSnapshot = this.getRenderPipelineSnapshot();
     const maximumEndpointError = Math.max(
@@ -647,7 +728,7 @@ export class SceneController {
       },
       pointerStrength: this.state.pointerStrength,
       brainTopology: `GLB · ${brainSnapshot.totalTriangles.toLocaleString()} tris · ${brainSnapshot.primaryWireSegments.toLocaleString()} wires · ${brainSnapshot.effect.mode} ${Math.round(brainSnapshot.effect.scanProgress * 100)}%`,
-      badgeOrbits: `brain ${badgeValidation.minimumBrainClearance.toFixed(2)} · pair ${badgeValidation.minimumBadgeClearance.toFixed(2)} · side ${badgeValidation.maximumSameSideCount}/3 · behind ${badgeValidation.maximumBehindCount}/2 · hidden ${badgeValidation.maximumOccludedCount}/2 · cluster ${badgeValidation.maximumCloseGroupSize}/2 · ${badgeValidation.distributionSafe ? 'safe' : 'unsafe'}`,
+      badgeOrbits: `brain ${badgeValidation.minimumBrainClearance.toFixed(2)} · pair ${badgeValidation.minimumBadgeClearance.toFixed(2)} · side ${badgeValidation.maximumSameSideCount}/${badgeValidation.limits.sameSide} · behind ${badgeValidation.maximumBehindCount}/${badgeValidation.limits.behind} · hidden ${badgeValidation.maximumOccludedCount}/${badgeValidation.limits.occluded} · cluster ${badgeValidation.maximumCloseGroupSize}/${badgeValidation.limits.closeGroup} · keep-out ${badgeValidation.minimumKeepOutSeparation?.toFixed(3) ?? 'n/a'} (${badgeValidation.maximumKeepOutOverlapCount}) · ${badgeValidation.distributionSafe ? 'safe' : 'unsafe'}`,
       networkLinks: `${networkSnapshot.links.length} links × ${networkSnapshot.links[0]?.sampleCount ?? 0} samples · ${networkSnapshot.packets.configuredCountPerLink}/link (${networkSnapshot.packets.activeCount} visible) → brain · endpoint ${maximumEndpointError.toExponential(1)}`,
       imagePipeline: `${renderPipelineSnapshot.hdrBuffer} · bloom ${renderPipelineSnapshot.bloom.enabled ? `${renderPipelineSnapshot.bloom.resolutionScale.toFixed(2)}×` : 'off'} · exposure ${renderPipelineSnapshot.exposure.toFixed(2)} · ${renderPipelineSnapshot.toneMapping} → ${renderPipelineSnapshot.outputColorSpace} · ${renderPipelineSnapshot.outputConversions} conversion`,
       message: this.runtimeMessage,
@@ -677,5 +758,14 @@ export class SceneController {
       dprCap: qualityProfileFor('fallback').dprCap,
       frameBudgetMs: null,
     };
+  }
+
+  private getBadgeOrbitValidationSnapshot(): BadgeOrbitValidationSnapshot {
+    return this.badgeOrbitValidation ?? this.composition.getBadgeOrbitValidation(this.camera);
+  }
+
+  private screenBridgeHost(): HTMLElement {
+    if (this.screenBridge === null) throw new Error('Screen bridge host is unavailable.');
+    return this.heroElement?.querySelector<HTMLElement>('#hero-stage') ?? this.canvas.parentElement ?? document.body;
   }
 }

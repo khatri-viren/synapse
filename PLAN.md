@@ -12,7 +12,12 @@ The locked technical direction is:
 - `WebGPURenderer` in automatic mode, using WebGPU where available and WebGL2 as the renderer fallback. Restrict materials and post-processing to TSL/Node-based APIs: the current Three.js WebGPU renderer does not support the traditional `ShaderMaterial`, `onBeforeCompile`, or legacy `EffectComposer` approach. [Three.js WebGPURenderer manual](https://threejs.org/manual/en/webgpurenderer)
 - A procedural, stylized brain—not an anatomical reconstruction and not a use of the supplied watermarked brain image.
 - Beveled app-badge solids, built from approved SVG brand marks; the supplied Instagram AVIF remains visual reference only.
-- Fully opaque dark canvas, HDR bloom, front-facing camera, ambient pointer parallax on desktop, and no control/UI overlay in production.
+- Fully opaque dark canvas, HDR bloom, front-facing camera, and ambient pointer parallax on desktop.
+- **Hero amendment (2026-08-19):** the visual-only/no-production-UI restriction is lifted for
+  Phase 9 onward. The canvas remains the single opaque rendering surface and the existing
+  one-clock, one-camera-writer, one-output-owner contract remains locked, while an accessible DOM
+  hero layer may provide navigation, supporting copy, CTAs, and scroll-revealed cards. The headline
+  remains real scene geometry so the brain can occlude it in depth.
 - Analytic movement and trails: badge orbits, connection curves, and packets are derived from time rather than simulated with persistent particle history.
 
 ## Locked interfaces and ownership
@@ -36,6 +41,7 @@ type SceneState = {
   introPhase: IntroPhase;
   pointerNdc: { x: number; y: number };
   pointerStrength: number;
+  scrollProgress: number;
 };
 
 interface SceneController {

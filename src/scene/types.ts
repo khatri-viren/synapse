@@ -28,6 +28,7 @@ export interface SceneState {
   introPhase: IntroPhase;
   pointerNdc: { x: number; y: number };
   pointerStrength: number;
+  scrollProgress: number;
 }
 
 export interface RuntimeDiagnostics {
@@ -109,8 +110,17 @@ export interface BadgeOrbitValidationSnapshot {
   maximumBehindCount: number;
   maximumOccludedCount: number;
   maximumCloseGroupSize: number;
+  minimumKeepOutSeparation: number | null;
+  maximumKeepOutOverlapCount: number;
+  limits: {
+    sameSide: number;
+    behind: number;
+    occluded: number;
+    closeGroup: number;
+  };
   brainCollisionFree: boolean;
   badgeCollisionFree: boolean;
+  keepOutSafe: boolean;
   distributionSafe: boolean;
 }
 
@@ -128,6 +138,7 @@ export interface SceneDebugSnapshot {
     badgeOrbitGuides: boolean;
     connections: boolean;
     packets: boolean;
+    atmosphere: boolean;
   };
   safeFrame: { x: number; y: number };
   camera: {
@@ -197,6 +208,25 @@ export interface SceneDebugSnapshot {
   badgeOrbitValidation: BadgeOrbitValidationSnapshot;
   badges: BadgeScreenDebugSnapshot[];
   network: NetworkDebugSnapshot;
+  atmosphere: {
+    seed: number;
+    particleCount: number;
+    representation: 'immutable-spawn + analytic-vertex-TSL';
+    depthTest: boolean;
+    depthWrite: boolean;
+    visible: boolean;
+    fog: {
+      branch: 'authored-local-depth-planes';
+      spatialDomain: 'bounded-hero-stage';
+      layerCount: number;
+      layerDepths: number[];
+      depthTest: true;
+      depthWrite: false;
+      densityProfile: 'brain-centered-flared-dome';
+      animated: boolean;
+      visible: boolean;
+    };
+  };
   rendering: RenderPipelineDebugSnapshot;
 }
 
