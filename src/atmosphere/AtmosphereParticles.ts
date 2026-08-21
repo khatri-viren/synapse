@@ -1,24 +1,24 @@
 import {
   AdditiveBlending,
-  BufferGeometry,
   Color,
-  Float32BufferAttribute,
   Group,
-  Points,
+  InstancedBufferAttribute,
   PointsNodeMaterial,
-  Sphere,
-  Vector3,
+  Sprite,
+  type SpriteMaterial,
 } from 'three/webgpu';
 import {
-  attribute,
   clamp,
   color,
+  distance,
   float,
+  instancedBufferAttribute,
   mix,
-  positionLocal,
   sin,
   smoothstep,
   uniform,
+  uv,
+  vec2,
   vec3,
 } from 'three/tsl';
 
@@ -38,7 +38,7 @@ function randomUnit(index: number, salt: number): number {
 export interface AtmosphereDebugSnapshot {
   seed: number;
   particleCount: number;
-  representation: 'immutable-spawn + analytic-vertex-TSL';
+  representation: 'immutable-instance-spawn + analytic-sprite-TSL';
   depthTest: boolean;
   depthWrite: boolean;
   visible: boolean;
@@ -58,10 +58,9 @@ export class AtmosphereParticles {
     depthWrite: false,
     blending: AdditiveBlending,
     size: 1,
-    sizeAttenuation: true,
+    sizeAttenuation: false,
   });
-  private geometry: BufferGeometry | null = null;
-  private points: Points | null = null;
+  private sprites: Sprite | null = null;
   private quality: QualityTier;
   private requestedVisible = true;
   private count = 0;
@@ -69,30 +68,6 @@ export class AtmosphereParticles {
   constructor(initialQuality: QualityTier) {
     this.quality = initialQuality;
     this.root.name = 'atmosphereParticles:analytic';
-
-    const phase = float(attribute<'float'>('particlePhase', 'float'));
-    const layer = float(attribute<'float'>('particleLayer', 'float'));
-    const amplitude = float(attribute<'float'>('particleAmplitude', 'float'));
-    const timePhase = this.time.mul(mix(float(0.08), float(0.24), layer)).add(phase.mul(Math.PI * 2));
-    const drift = vec3(
-      sin(timePhase).mul(amplitude),
-      sin(timePhase.mul(0.73).add(phase.mul(3.1))).mul(amplitude.mul(0.72)),
-      sin(timePhase.mul(0.51).add(phase.mul(5.7))).mul(amplitude.mul(0.46)),
-    );
-    this.material.positionNode = positionLocal
-      .add(drift)
-      .add(vec3(float(0), this.scrollProgress.mul(layer).mul(-0.32), float(0)));
-    const pulse = sin(timePhase.mul(1.7)).mul(0.5).add(0.5);
-    this.material.opacityNode = clamp(
-      mix(float(0.08), float(0.32), pulse)
-        .mul(mix(float(0.55), float(1), layer))
-        .mul(smoothstep(float(0), float(1), this.introProgress)),
-      float(0),
-      float(0.46),
-    );
-    this.material.colorNode = mix(color('#5d7698'), color('#9eefff'), layer).mul(
-      mix(float(0.62), float(1.18), pulse),
-    );
     this.rebuild(initialQuality);
   }
 
@@ -125,7 +100,7 @@ export class AtmosphereParticles {
     return {
       seed: PARTICLE_SEED,
       particleCount: this.count,
-      representation: 'immutable-spawn + analytic-vertex-TSL',
+      representation: 'immutable-instance-spawn + analytic-sprite-TSL',
       depthTest: this.material.depthTest,
       depthWrite: this.material.depthWrite,
       visible: this.root.visible,
@@ -133,18 +108,18 @@ export class AtmosphereParticles {
   }
 
   dispose(): void {
-    this.geometry?.dispose();
     this.material.dispose();
   }
 
   private rebuild(quality: QualityTier): void {
-    this.geometry?.dispose();
-    this.points?.removeFromParent();
+    this.sprites?.removeFromParent();
     const count = qualityProfileFor(quality).atmosphereParticles;
     const positions = new Float32Array(count * 3);
     const phases = new Float32Array(count);
     const layers = new Float32Array(count);
     const amplitudes = new Float32Array(count);
+    const sizes = new Float32Array(count);
+    const opacities = new Float32Array(count);
 
     for (let index = 0; index < count; index += 1) {
       const layer = index % 3 / 2;
@@ -157,21 +132,68 @@ export class AtmosphereParticles {
       phases[index] = randomUnit(index, 0x55);
       layers[index] = layer;
       amplitudes[index] = 0.06 + randomUnit(index, 0x66) * (0.12 + layer * 0.14);
+      const sizeVariation = randomUnit(index, 0x77);
+      const heroMote = randomUnit(index, 0x88) > 0.94 ? 2.2 : 0;
+      sizes[index] = 1.8 + layer * 0.9 + sizeVariation * sizeVariation * 4.8 + heroMote;
+      opacities[index] = 0.62 + randomUnit(index, 0x99) * 0.3;
     }
 
-    const geometry = new BufferGeometry();
-    geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
-    geometry.setAttribute('particlePhase', new Float32BufferAttribute(phases, 1));
-    geometry.setAttribute('particleLayer', new Float32BufferAttribute(layers, 1));
-    geometry.setAttribute('particleAmplitude', new Float32BufferAttribute(amplitudes, 1));
-    geometry.boundingSphere = new Sphere(new Vector3(), 9);
-    const points = new Points(geometry, this.material);
-    points.name = `atmospherePoints:${quality}`;
-    points.renderOrder = 0;
-    this.geometry = geometry;
-    this.points = points;
+    const spawn = instancedBufferAttribute<'vec3'>(
+      new InstancedBufferAttribute(positions, 3),
+      'vec3',
+    );
+    const phase = float(
+      instancedBufferAttribute<'float'>(new InstancedBufferAttribute(phases, 1), 'float'),
+    );
+    const layer = float(
+      instancedBufferAttribute<'float'>(new InstancedBufferAttribute(layers, 1), 'float'),
+    );
+    const amplitude = float(
+      instancedBufferAttribute<'float'>(new InstancedBufferAttribute(amplitudes, 1), 'float'),
+    );
+    const size = float(
+      instancedBufferAttribute<'float'>(new InstancedBufferAttribute(sizes, 1), 'float'),
+    );
+    const particleOpacity = float(
+      instancedBufferAttribute<'float'>(new InstancedBufferAttribute(opacities, 1), 'float'),
+    );
+    const timePhase = this.time
+      .mul(mix(float(0.08), float(0.24), layer))
+      .add(phase.mul(Math.PI * 2));
+    const drift = vec3(
+      sin(timePhase).mul(amplitude),
+      sin(timePhase.mul(0.73).add(phase.mul(3.1))).mul(amplitude.mul(0.72)),
+      sin(timePhase.mul(0.51).add(phase.mul(5.7))).mul(amplitude.mul(0.46)),
+    );
+    const pulse = sin(timePhase.mul(1.7)).mul(0.5).add(0.5);
+    const roundMask = smoothstep(float(0.52), float(0.2), distance(uv(), vec2(0.5)));
+
+    this.material.positionNode = spawn
+      .add(drift)
+      .add(vec3(float(0), this.scrollProgress.mul(layer).mul(-0.32), float(0)));
+    this.material.sizeNode = size;
+    this.material.opacityNode = clamp(
+      mix(float(0.11), float(0.43), pulse)
+        .mul(mix(float(0.66), float(0.96), layer))
+        .mul(particleOpacity)
+        .mul(roundMask)
+        .mul(smoothstep(float(0), float(1), this.introProgress)),
+      float(0),
+      float(0.5),
+    );
+    this.material.colorNode = mix(color('#607997'), color('#9be5f5'), layer).mul(
+      mix(float(0.68), float(1.12), pulse),
+    );
+    this.material.needsUpdate = true;
+
+    const sprites = new Sprite(this.material as unknown as SpriteMaterial);
+    sprites.count = count;
+    sprites.name = `atmosphereSprites:${quality}`;
+    sprites.renderOrder = 0;
+    sprites.frustumCulled = false;
+    this.sprites = sprites;
     this.count = count;
-    this.root.add(points);
+    this.root.add(sprites);
     this.root.visible = this.requestedVisible;
   }
 }

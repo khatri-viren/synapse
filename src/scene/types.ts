@@ -211,7 +211,7 @@ export interface SceneDebugSnapshot {
   atmosphere: {
     seed: number;
     particleCount: number;
-    representation: 'immutable-spawn + analytic-vertex-TSL';
+    representation: 'immutable-instance-spawn + analytic-sprite-TSL';
     depthTest: boolean;
     depthWrite: boolean;
     visible: boolean;

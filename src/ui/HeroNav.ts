@@ -6,6 +6,7 @@ type NavBeat =
   | 'navItemOne'
   | 'navItemTwo'
   | 'navItemThree'
+  | 'navItemFour'
   | 'navCta'
   | 'navGlint';
 
@@ -112,6 +113,111 @@ export class HeroNav {
       document.removeEventListener('keydown', documentKeyDown);
       window.removeEventListener('resize', resize);
     });
+
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let liquidFrame = 0;
+    let lastLiquidFrameTime = 0;
+    let liquidX = 0.5;
+    let liquidY = 0.62;
+    let targetLiquidX = liquidX;
+    let targetLiquidY = liquidY;
+    let liquidVelocityX = 0;
+    let liquidVelocityY = 0;
+    let liquidStretch = 0;
+
+    const writeLiquidState = (): void => {
+      this.root.style.setProperty('--nav-liquid-x', `${(liquidX * 100).toFixed(2)}%`);
+      this.root.style.setProperty('--nav-liquid-y', `${(liquidY * 100).toFixed(2)}%`);
+      this.root.style.setProperty('--nav-liquid-stretch', liquidStretch.toFixed(4));
+    };
+    const stopLiquidSpring = (): void => {
+      if (liquidFrame !== 0) window.cancelAnimationFrame(liquidFrame);
+      liquidFrame = 0;
+      lastLiquidFrameTime = 0;
+    };
+    const updateLiquidSpring = (time: number): void => {
+      const deltaSeconds =
+        lastLiquidFrameTime === 0 ? 1 / 60 : Math.min((time - lastLiquidFrameTime) / 1000, 0.033);
+      lastLiquidFrameTime = time;
+
+      const stiffness = 30;
+      const damping = 9.2;
+      liquidVelocityX +=
+        ((targetLiquidX - liquidX) * stiffness - liquidVelocityX * damping) * deltaSeconds;
+      liquidVelocityY +=
+        ((targetLiquidY - liquidY) * stiffness - liquidVelocityY * damping) * deltaSeconds;
+      liquidX += liquidVelocityX * deltaSeconds;
+      liquidY += liquidVelocityY * deltaSeconds;
+
+      const bounds = this.root.getBoundingClientRect();
+      const speedPixels = Math.hypot(
+        liquidVelocityX * bounds.width,
+        liquidVelocityY * bounds.height,
+      );
+      const targetStretch = Math.min(speedPixels / 270, 1);
+      liquidStretch += (targetStretch - liquidStretch) * (1 - Math.exp(-deltaSeconds * 7));
+      writeLiquidState();
+
+      const distance = Math.hypot(targetLiquidX - liquidX, targetLiquidY - liquidY);
+      const speed = Math.hypot(liquidVelocityX, liquidVelocityY);
+      if (distance > 0.0005 || speed > 0.0007 || liquidStretch > 0.002) {
+        liquidFrame = window.requestAnimationFrame(updateLiquidSpring);
+      } else {
+        liquidFrame = 0;
+        lastLiquidFrameTime = 0;
+      }
+    };
+    const startLiquidSpring = (): void => {
+      if (liquidFrame === 0) liquidFrame = window.requestAnimationFrame(updateLiquidSpring);
+    };
+    const updateLiquidTarget = (event: PointerEvent): void => {
+      const bounds = this.root.getBoundingClientRect();
+      const pointerX = Math.min(Math.max((event.clientX - bounds.left) / bounds.width, 0), 1);
+      const pointerY = Math.min(Math.max((event.clientY - bounds.top) / bounds.height, 0), 1);
+      const directionX = (pointerX - 0.5) / 0.48;
+      const directionY = (pointerY - 0.5) / 0.42;
+      const directionLength = Math.hypot(directionX, directionY);
+      const edgeX = directionLength > 0.025 ? 0.5 + (directionX / directionLength) * 0.48 : 0.5;
+      const edgeY = directionLength > 0.025 ? 0.5 + (directionY / directionLength) * 0.42 : 0.92;
+      targetLiquidX = 0.11 + edgeX * 0.78;
+      targetLiquidY = 0.21 + edgeY * 0.58;
+
+      if (reducedMotion.matches) {
+        liquidX = targetLiquidX;
+        liquidY = targetLiquidY;
+        liquidVelocityX = 0;
+        liquidVelocityY = 0;
+        liquidStretch = 0;
+        writeLiquidState();
+        return;
+      }
+      startLiquidSpring();
+    };
+    const resetLiquidOrigin = (): void => {
+      targetLiquidX = 0.5;
+      targetLiquidY = 0.62;
+      if (reducedMotion.matches) {
+        liquidX = targetLiquidX;
+        liquidY = targetLiquidY;
+        liquidStretch = 0;
+        writeLiquidState();
+        return;
+      }
+      startLiquidSpring();
+    };
+
+    this.root.addEventListener('pointerenter', updateLiquidTarget);
+    this.root.addEventListener('pointermove', updateLiquidTarget);
+    this.root.addEventListener('pointerleave', resetLiquidOrigin);
+    this.cleanup.push(() => {
+      this.root.removeEventListener('pointerenter', updateLiquidTarget);
+      this.root.removeEventListener('pointermove', updateLiquidTarget);
+      this.root.removeEventListener('pointerleave', resetLiquidOrigin);
+      stopLiquidSpring();
+      this.root.style.removeProperty('--nav-liquid-x');
+      this.root.style.removeProperty('--nav-liquid-y');
+      this.root.style.removeProperty('--nav-liquid-stretch');
+    });
   }
 
   update(state: Pick<SceneState, 'elapsedSeconds' | 'quality'>): void {
@@ -124,6 +230,7 @@ export class HeroNav {
     const itemOne = progressFor('navItemOne');
     const itemTwo = progressFor('navItemTwo');
     const itemThree = progressFor('navItemThree');
+    const itemFour = progressFor('navItemFour');
     const cta = progressFor('navCta');
     const glintProgress = reduced ? 0 : progressFor('navGlint');
 
@@ -131,6 +238,7 @@ export class HeroNav {
     this.write('--nav-item-one-reveal', itemOne);
     this.write('--nav-item-two-reveal', itemTwo);
     this.write('--nav-item-three-reveal', itemThree);
+    this.write('--nav-item-four-reveal', itemFour);
     this.write('--nav-cta-reveal', cta);
     this.write('--nav-glint-progress', glintProgress);
     this.write('--nav-glint-opacity', reduced ? 0 : Math.sin(Math.PI * glintProgress) * 0.72);

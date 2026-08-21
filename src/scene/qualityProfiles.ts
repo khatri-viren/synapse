@@ -28,7 +28,7 @@ const QUALITY_PROFILES: Record<QualityTier, QualityProfile> = {
     ghostWires: true,
     pointerParallax: true,
     continuousAnimation: true,
-    atmosphereParticles: 240,
+    atmosphereParticles: 210,
     fogLayers: 3,
     frameBudgetMs: 1000 / 60,
     bloom: {
@@ -47,7 +47,7 @@ const QUALITY_PROFILES: Record<QualityTier, QualityProfile> = {
     ghostWires: false,
     pointerParallax: false,
     continuousAnimation: true,
-    atmosphereParticles: 110,
+    atmosphereParticles: 80,
     fogLayers: 2,
     frameBudgetMs: 1000 / 30,
     bloom: {
@@ -66,7 +66,7 @@ const QUALITY_PROFILES: Record<QualityTier, QualityProfile> = {
     ghostWires: false,
     pointerParallax: false,
     continuousAnimation: false,
-    atmosphereParticles: 64,
+    atmosphereParticles: 32,
     fogLayers: 2,
     frameBudgetMs: null,
     bloom: {

@@ -3,12 +3,16 @@
   --nav-item-one-reveal: 0;
   --nav-item-two-reveal: 0;
   --nav-item-three-reveal: 0;
+  --nav-item-four-reveal: 0;
   --nav-cta-reveal: 0;
   --nav-glint-progress: 0;
   --nav-glint-opacity: 0;
   --nav-lens-x: 0px;
   --nav-lens-width: 4rem;
   --nav-lens-opacity: 0;
+  --nav-liquid-x: 50%;
+  --nav-liquid-y: 62%;
+  --nav-liquid-stretch: 0;
   position: absolute;
   z-index: 5;
   top: var(--nav-band-top);
@@ -18,7 +22,7 @@
   align-items: center;
   justify-content: flex-start;
   width: max-content;
-  max-width: min(26rem, var(--nav-band-width));
+  max-width: min(29rem, var(--nav-band-width));
   height: 3.55rem;
   min-height: 0;
   padding: 0.34rem 0.46rem;
@@ -49,7 +53,27 @@
 }
 
 .hero-nav__glass::before {
-  display: none;
+  position: absolute;
+  inset: -36% -14%;
+  background: radial-gradient(
+    ellipse calc(38% + var(--nav-liquid-stretch) * 9%)
+      calc(52% - var(--nav-liquid-stretch) * 4%) at var(--nav-liquid-x) var(--nav-liquid-y),
+    rgba(119, 210, 232, 0.18) 0%,
+    rgba(108, 194, 226, 0.16) 18%,
+    rgba(82, 150, 211, 0.12) 40%,
+    rgba(65, 113, 187, 0.075) 62%,
+    rgba(56, 91, 161, 0.03) 80%,
+    transparent 100%
+  );
+  mix-blend-mode: screen;
+  opacity: 0;
+  filter: saturate(1.08);
+  transform: translate3d(0, 18%, 0) scale(1.04);
+  transition:
+    opacity 520ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 760ms cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+  content: '';
 }
 
 .hero-nav__glass::after {
@@ -58,6 +82,12 @@
 
 .hero-nav__glass-depth {
   display: none;
+}
+
+.hero-nav:hover .hero-nav__glass::before,
+.hero-nav:focus-within .hero-nav__glass::before {
+  opacity: 0.86;
+  transform: translate3d(0, 0, 0) scale(1.02);
 }
 
 .hero-nav__menu-toggle,
@@ -139,6 +169,10 @@
 
 .hero-nav__link--three {
   --item-reveal: var(--nav-item-three-reveal);
+}
+
+.hero-nav__link--four {
+  --item-reveal: var(--nav-item-four-reveal);
 }
 
 .hero-nav__link:hover,
@@ -405,6 +439,7 @@
   }
 
   .hero-nav__hover-lens,
+  .hero-nav__glass::before,
   .hero-nav__links,
   .hero-nav__cta,
   .hero-nav__cta::before,
