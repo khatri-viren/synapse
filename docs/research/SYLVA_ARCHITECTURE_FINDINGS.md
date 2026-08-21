@@ -5,7 +5,7 @@
 
 This report analyzes [MengTo/sylva](https://github.com/MengTo/sylva) as an implementation reference for a procedural Three.js scene, especially the way its 3D forms, shaders, instancing, pointer interaction, and wireframe scan layer are assembled.
 
-The visual design is intentionally out of scope. The goal is to understand the underlying technical architecture and identify patterns that can be adapted to the brain-animation project.
+The visual design is intentionally out of scope. The goal is to understand the underlying technical architecture and identify patterns that can be adapted to the Synapse project.
 
 Primary references:
 
@@ -561,7 +561,7 @@ When reduced motion is enabled, it suppresses or reduces:
 
 The HTML layout remains available if the main Three.js scene cannot initialize. This is a good resilience pattern for a decorative WebGL scene.
 
-## What is genuinely reusable for the brain animation
+## What is genuinely reusable for Synapse
 
 ### Reusable scene architecture
 
@@ -742,7 +742,6 @@ one surface/topology source
         └── scan/reveal masks
 ~~~
 
-For the brain animation, we should preserve that relationship. The brain geometry should be the source of truth, and the solid brain, wireframe, neural signals, and surface particles should all derive from or reference that same source.
+For Synapse, we should preserve that relationship. The brain geometry should be the source of truth, and the solid brain, wireframe, neural signals, and surface particles should all derive from or reference that same source.
 
 That will make the wireframe feel structurally connected to the brain rather than like a separate decorative overlay.
-

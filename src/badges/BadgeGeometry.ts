@@ -29,6 +29,8 @@ export const BADGE_CORNER_RADIUS = 0.17;
 const BADGE_DEPTH = 0.12;
 const MARK_MAX_SIZE = 0.55;
 const MARK_PLATE_CLEARANCE = 0.012;
+const HIGH_GLOW_WHITE_MARK_LOGOS = new Set(['instagram', 'facebook', 'shopify']);
+const HIGH_GLOW_WHITE_MARK_INTENSITY = 1.14;
 
 function roundedRectangle(size: number, radius: number): Shape {
   const half = size * 0.5;
@@ -67,11 +69,13 @@ function material(
   });
 }
 
-function markMaterial(color: string): MeshBasicNodeMaterial {
-  return new MeshBasicNodeMaterial({
+function markMaterial(color: string, glowIntensity: number): MeshBasicNodeMaterial {
+  const material = new MeshBasicNodeMaterial({
     color: new Color(color),
     toneMapped: false,
   });
+  material.colorNode = tslColor(color).mul(glowIntensity);
+  return material;
 }
 
 function createMarkGeometry(
@@ -125,7 +129,7 @@ export function createBadgeVisual(
   plateGeometry.computeBoundingBox();
   const plateFrontZ = plateGeometry.boundingBox?.max.z ?? BADGE_DEPTH * 0.5;
   const plateMaterial = material(spec.plateColor, {
-    emissiveIntensity: 0.52,
+    emissiveIntensity: 0.46,
     metalness: 0.38,
     roughness: 0.28,
   });
@@ -136,7 +140,7 @@ export function createBadgeVisual(
     opacity: 0.62,
     transparent: true,
   });
-  edgeMaterial.colorNode = tslColor(spec.accentColor).mul(1.34);
+  edgeMaterial.colorNode = tslColor(spec.accentColor).mul(1.2);
   const edgeAccent = new LineSegments(edgeGeometry, edgeMaterial);
   plate.name = `${spec.id}:plate`;
   plate.userData = { role: 'badgePlate', logoId: spec.id };
@@ -149,7 +153,11 @@ export function createBadgeVisual(
   materials.add(edgeMaterial);
 
   for (const [layerIndex, layer] of asset.layers.entries()) {
-    const layerMaterial = markMaterial(layer.color);
+    const glowIntensity =
+      layer.color === '#ffffff' && HIGH_GLOW_WHITE_MARK_LOGOS.has(spec.id)
+        ? HIGH_GLOW_WHITE_MARK_INTENSITY
+        : 1;
+    const layerMaterial = markMaterial(layer.color, glowIntensity);
     materials.add(layerMaterial);
 
     for (const [shapeIndex, geometry] of createMarkGeometry(

@@ -7,10 +7,39 @@
       name="description"
       content="A cinematic neural intelligence hero where platform signals converge into one living network."
     />
+    <style>
+      /* Critical paint guard: Vite injects the full stylesheet through the app
+         module, so keep raw HTML/SVG out of the first browser paint. */
+      html,
+      body {
+        margin: 0;
+        background: #05060c;
+        color-scheme: dark;
+      }
+
+      html:not(.app-styles-ready) body {
+        overflow: hidden;
+      }
+
+      html:not(.app-styles-ready) #app {
+        visibility: hidden;
+      }
+    </style>
+    <noscript>
+      <style>
+        #app {
+          visibility: visible !important;
+        }
+      </style>
+    </noscript>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,600,700,800,900&amp;display=swap"
       rel="stylesheet"
     />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />

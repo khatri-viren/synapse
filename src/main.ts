@@ -90,6 +90,12 @@ let latestDiagnostics: RuntimeDiagnostics | null = null;
 let controller: SceneController | null = null;
 const heroUi = new HeroUI(heroStage, () => controller?.replayIntro());
 
+// CSS is imported as a module dependency. Reveal on the next paint only after
+// the styled DOM controllers are initialized, preventing raw-markup FOUC.
+window.requestAnimationFrame(() => {
+  document.documentElement.classList.add('app-styles-ready');
+});
+
 const updateRuntimePresentation = (diagnostics: RuntimeDiagnostics): void => {
   latestDiagnostics = diagnostics;
   const fallbackVisible = diagnostics.runtimePhase === 'fallback';

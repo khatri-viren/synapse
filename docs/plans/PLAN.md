@@ -2,7 +2,7 @@
 
 ## Summary
 
-Create a companion document named `PHASED_IMPLEMENTATION_PLAN.md` alongside [SYLVA_ARCHITECTURE_FINDINGS.md](/Users/khatri_viren/Developer/Projects/brain-animation/SYLVA_ARCHITECTURE_FINDINGS.md). It will be the build checklist for the dark, front-facing neural-network hero: a procedural brain, five branded 3D badges, and inbound data links.
+Create a companion document named `PHASED_IMPLEMENTATION_PLAN.md` alongside [SYLVA_ARCHITECTURE_FINDINGS.md](../research/SYLVA_ARCHITECTURE_FINDINGS.md). It will be the build checklist for the dark, front-facing neural-network hero: a procedural brain, five branded 3D badges, and inbound data links.
 
 Each phase is a hard gate. Do not begin the next phase until its manual acceptance checks pass and a screenshot or short screen recording is saved as sign-off.
 

@@ -172,7 +172,7 @@ function writeGlb(indices, positions, normals) {
   const bounds = attributeBounds(positions);
 
   const json = {
-    asset: { generator: 'brain-animation meshoptimizer pipeline', version: '2.0' },
+    asset: { generator: 'synapse meshoptimizer pipeline', version: '2.0' },
     scene: 0,
     scenes: [{ nodes: [0] }],
     nodes: [{ mesh: 0, name: 'BrainRuntime' }],

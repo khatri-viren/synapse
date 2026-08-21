@@ -7,30 +7,6 @@
   text-rendering: optimizeLegibility;
 }
 
-@font-face {
-  font-family: 'Switzer';
-  font-style: normal;
-  font-weight: 800;
-  font-display: swap;
-  src: url('/fonts/Switzer-Extrabold.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Gambarino';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('/fonts/Gambarino-Regular.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Satoshi';
-  font-style: normal;
-  font-weight: 300 900;
-  font-display: swap;
-  src: url('/fonts/Satoshi-Variable.woff2') format('woff2');
-}
-
 * {
   box-sizing: border-box;
 }
@@ -91,8 +67,8 @@ body {
 
 .hero-scroll {
   position: relative;
-  height: 185svh;
-  min-height: 68rem;
+  height: 140svh;
+  min-height: 60rem;
   background: #05060c;
 }
 
@@ -137,7 +113,13 @@ body {
   inset: 0;
   contain: strict;
   pointer-events: none;
-  background: url('/colorFlow.webp') center 46% / cover no-repeat;
+  background:
+    radial-gradient(ellipse at 18% 48%, rgba(56, 108, 157, 0.72) 0%, rgba(31, 68, 118, 0.42) 24%, transparent 48%),
+    radial-gradient(ellipse at 48% 40%, rgba(224, 57, 42, 0.72) 0%, rgba(150, 28, 45, 0.42) 28%, transparent 54%),
+    radial-gradient(ellipse at 78% 56%, rgba(73, 17, 83, 0.78) 0%, rgba(35, 6, 43, 0.52) 38%, transparent 68%),
+    radial-gradient(ellipse at 52% 92%, rgba(18, 12, 46, 0.92) 0%, transparent 58%),
+    #05060c;
+  filter: blur(16px) saturate(1.08);
   mix-blend-mode: screen;
   opacity: 0.56;
   transform: translateZ(0);
@@ -1035,8 +1017,8 @@ body {
 
 @media (max-width: 767px) {
   .hero-scroll {
-    height: 165svh;
-    min-height: 56rem;
+    height: 135svh;
+    min-height: 48rem;
   }
 
   .hero-stage {
@@ -1044,14 +1026,18 @@ body {
   }
 
   .agent-heading {
-    top: clamp(2rem, 7vh, 4rem);
-    left: 1.1rem;
-    width: calc(100% - 2.2rem);
+    top: clamp(6.75rem, 14vh, 8rem);
+    left: 1rem;
+    width: calc(100% - 2rem);
+    opacity: 1;
+    transition: opacity 260ms ease-out;
   }
 
   .agent-heading h1 {
-    font-size: clamp(3.4rem, 15vw, 4.75rem);
-    letter-spacing: 0.01em;
+    width: 100%;
+    font-size: clamp(2.3rem, 11.5vw, 4.25rem);
+    letter-spacing: -0.035em;
+    line-height: 1.02;
   }
 
   .brain-insights,

@@ -590,7 +590,7 @@ export class BadgeSystem {
       const socketMaterial = new MeshStandardNodeMaterial({
         color: new Color(spec.plateColor),
         emissive: new Color(spec.plateColor),
-        emissiveIntensity: 0.68,
+        emissiveIntensity: 0.59,
         metalness: 0.4,
         roughness: 0.25,
       });

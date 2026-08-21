@@ -1,6 +1,6 @@
 # Hero Section Plan — DOM composition around the neural centerpiece
 
-Status: **proposal, Phase 9+**. Extends `PLAN.md` (phases 0–8) and `Architectural_PLAN.md`.
+Status: **proposal, Phase 9+**. Extends [PLAN.md](./PLAN.md) (phases 0–8) and [Architectural_PLAN.md](./Architectural_PLAN.md).
 Prerequisite: this plan **amends a locked constraint**. See §1.5.
 
 ---
@@ -25,7 +25,7 @@ Four things, cheapest first, each of which removes a decision from the critical 
 
 1. ~~**Decide the DOM stack.**~~ **Settled: vanilla TS + `motion`, no React** (§1.2).
    `npm i motion` is the only install Phase 12 needs.
-2. **Open `/glass-probe.html` in real Firefox** (`npm run dev`). The glass question is otherwise
+2. **Open `/experiments/glass-probe.html` in real Firefox** (`npm run dev`). The glass question is otherwise
    settled by measurement (§4.2) — `backdrop-filter` does sample the WebGPU canvas, in Chromium and
    Safari, at ~1.6% frame cost. Firefox is the one gap, and the browsers' own `CSS.supports` lies
    about it, so it needs a real look.

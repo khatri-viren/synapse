@@ -228,7 +228,9 @@ export class HeroUI {
     this.write('--support-reveal', progressFor('support'));
     this.write('--insights-reveal', minimumJerk(progressFor('insights')));
     this.write('--cards-reveal', Math.max(progressFor('cards'), state.scrollProgress * 1.4));
-    this.write('--fold-progress', reduced ? 1 : Math.min(Math.max(state.scrollProgress * 2.2, 0), 1));
+    // Let the final card-unfold state meet the sticky-section handoff. Finishing
+    // this early creates a long scroll interval in which the hero no longer changes.
+    this.write('--fold-progress', reduced ? 1 : state.scrollProgress);
     this.write('--title-line-one-reveal', titleLineOne);
     this.write('--title-line-two-reveal', titleLineTwo);
     this.write('--title-reveal', (titleLineOne + titleLineTwo) * 0.5);
