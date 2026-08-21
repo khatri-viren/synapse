@@ -28,6 +28,49 @@
           ></canvas>
 
           <div class="hero-ui">
+            <nav
+              class="hero-nav"
+              aria-label="Primary navigation"
+              data-hero-nav
+              data-menu-open="false"
+              data-ready="false"
+            >
+              <span class="hero-nav__glass" aria-hidden="true">
+                <span class="hero-nav__glass-depth"></span>
+              </span>
+              <span class="hero-nav__hover-lens" aria-hidden="true" data-nav-lens></span>
+
+              <button
+                class="hero-nav__menu-toggle"
+                type="button"
+                aria-expanded="false"
+                aria-controls="hero-primary-links"
+                data-nav-menu-toggle
+              >
+                <span>Menu</span>
+                <i aria-hidden="true"></i>
+              </button>
+
+              <div class="hero-nav__links" id="hero-primary-links" data-nav-track>
+                <a class="hero-nav__link hero-nav__link--one" href="#hero-scroll" data-nav-item>
+                  Platform
+                </a>
+                <a class="hero-nav__link hero-nav__link--two" href="#story" data-nav-item>
+                  How it works
+                </a>
+                <a class="hero-nav__link hero-nav__link--three" href="#systems" data-nav-item>
+                  Integrations
+                </a>
+              </div>
+
+              <a class="hero-nav__cta" href="#story" data-nav-cta>
+                <span>Get started</span>
+                <i aria-hidden="true">↗</i>
+              </a>
+
+              <span class="hero-nav__glint" aria-hidden="true"></span>
+            </nav>
+
             <header class="agent-heading" data-title-reveal>
               <h1 id="hero-title">
                 <span>One Agent.</span>

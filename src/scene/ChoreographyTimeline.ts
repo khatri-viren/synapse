@@ -29,7 +29,14 @@ export const CHOREOGRAPHY_TIMELINE = {
   headerLineOne: beat(1.02, 1.92),
   headerLineTwo: beat(1.18, 2.08),
   badgeArrival: beat(0.85, 2.05),
-  nav: beat(0.9, 1.55),
+  // The liquid shell and its four content actors share the five badge starts.
+  navShell: beat(0.85, 1.75),
+  navItemOne: beat(1.01, 1.91),
+  navItemTwo: beat(1.17, 2.07),
+  navItemThree: beat(1.33, 2.23),
+  navCta: beat(1.49, 2.49),
+  navGlint: beat(1.72, 2.42),
+  nav: beat(0.85, 2.49),
   // Connections follow the same stagger as their badges, beginning 200ms
   // after each corresponding badge starts materializing.
   linkActivation: beat(1.05, 2.85),

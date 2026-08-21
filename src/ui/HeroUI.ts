@@ -2,6 +2,7 @@ import { animate } from 'motion';
 
 import { CHOREOGRAPHY_TIMELINE, normalizedBeatProgress } from '../scene/ChoreographyTimeline';
 import type { SceneState } from '../scene/types';
+import { HeroNav } from './HeroNav';
 
 type StoppableAnimation = { stop: () => void };
 
@@ -67,11 +68,13 @@ export class HeroUI {
   private readonly springVariables: SpringCssVariable[] = [];
   private readonly cleanup: Array<() => void> = [];
   private readonly scrollReveal: ScrollRevealController;
+  private readonly heroNav: HeroNav;
 
   constructor(
     private readonly host: HTMLElement,
     onReplay: () => void,
   ) {
+    this.heroNav = new HeroNav(host);
     const interactive = host.querySelectorAll<HTMLElement>('[data-spring-lift]');
     for (const element of interactive) {
       const springVariable = new SpringCssVariable(element, '--hover-lift');
@@ -121,11 +124,13 @@ export class HeroUI {
     this.write('--title-line-one-reveal', titleLineOne);
     this.write('--title-line-two-reveal', titleLineTwo);
     this.write('--title-reveal', (titleLineOne + titleLineTwo) * 0.5);
+    this.heroNav.update(state);
   }
 
   dispose(): void {
     for (const dispose of this.cleanup) dispose();
     for (const variable of this.springVariables) variable.dispose();
+    this.heroNav.dispose();
     this.scrollReveal.dispose();
     for (const property of this.values.keys()) this.host.style.removeProperty(property);
   }

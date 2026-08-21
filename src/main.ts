@@ -1,4 +1,5 @@
 import './styles.css';
+import './ui/hero-nav.css';
 
 import { DebugPanel } from './debug/DebugPanel';
 import { SceneController } from './scene/SceneController';

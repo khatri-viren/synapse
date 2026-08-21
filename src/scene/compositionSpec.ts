@@ -28,7 +28,7 @@ export interface HeroLayoutSpec {
 
 const wideLayout: HeroLayoutSpec = {
   stage: { centerX: 0, centerY: 0.015, halfWidth: 0.78, halfHeight: 0.72 },
-  navBand: { left: 0.075, top: 0.025, width: 0.85, height: 0.08 },
+  navBand: { left: 0.66, top: 0.072, width: 0.295, height: 0.065 },
   headlineBand: { left: 0.035, top: 0.17, width: 0.93, height: 0.43 },
   supportBand: { left: 0.27, top: 0.76, width: 0.46, height: 0.17 },
   cardGutters: [
@@ -36,14 +36,14 @@ const wideLayout: HeroLayoutSpec = {
     { left: 0.73, top: 0.65, width: 0.235, height: 0.24 },
   ],
   keepOutRects: [
-    { left: 0.075, top: 0.025, width: 0.85, height: 0.08 },
+    { left: 0.66, top: 0.072, width: 0.295, height: 0.065 },
     { left: 0.34, top: 0.87, width: 0.32, height: 0.1 },
   ],
 };
 
 const compactLayout: HeroLayoutSpec = {
   stage: { centerX: 0, centerY: 0.02, halfWidth: 0.9, halfHeight: 0.68 },
-  navBand: { left: 0.045, top: 0.02, width: 0.91, height: 0.075 },
+  navBand: { left: 0.04, top: 0.018, width: 0.92, height: 0.075 },
   headlineBand: { left: 0.04, top: 0.19, width: 0.92, height: 0.4 },
   supportBand: { left: 0.08, top: 0.73, width: 0.84, height: 0.16 },
   cardGutters: [
@@ -51,7 +51,7 @@ const compactLayout: HeroLayoutSpec = {
     { left: 0.52, top: 0.86, width: 0.43, height: 0.12 },
   ],
   keepOutRects: [
-    { left: 0.045, top: 0.02, width: 0.91, height: 0.075 },
+    { left: 0.04, top: 0.018, width: 0.92, height: 0.075 },
     { left: 0.19, top: 0.87, width: 0.62, height: 0.1 },
   ],
 };
